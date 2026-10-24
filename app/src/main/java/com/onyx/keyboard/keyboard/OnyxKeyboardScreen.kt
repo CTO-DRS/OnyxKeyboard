@@ -60,7 +60,15 @@ fun OnyxKeyboardScreen(controller: OnyxKeyboardController) {
     ) {
         if (controller.particles.collectAsState().value) {
             ParticleField(
-                modifier = Modifier.fillMaxSize(),
+                // CRITICAL FIX (keyboard floating at top of screen):
+                // fillMaxSize() made this Canvas fill the entire IME window's
+                // max constraints, so the Box (and therefore the IME window)
+                // measured to FULL SCREEN height — keys rendered at the top
+                // with a huge empty particle area below. matchParentSize()
+                // sizes the overlay to the keyboard content WITHOUT being
+                // measured by the Box, so the window wraps the keys and the
+                // IME docks at the bottom as expected.
+                modifier = Modifier.matchParentSize(),
                 color = theme.particle,
                 count = 22
             )

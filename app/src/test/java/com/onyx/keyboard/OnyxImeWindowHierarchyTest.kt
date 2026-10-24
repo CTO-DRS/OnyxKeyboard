@@ -163,6 +163,55 @@ class OnyxImeWindowHierarchyTest {
         assertNotNull(view.findViewTreeLifecycleOwner())
     }
 
+    /**
+     * REGRESSION (keyboard floating at the top of the screen):
+     *
+     * The decorative ParticleField used Modifier.fillMaxSize() inside the
+     * root Box. Inside an IME window the max constraints equal the WHOLE
+     * display, so the Canvas expanded the Box to full-screen height — the
+     * IME window grew to the full screen, keys rendered at the top and a
+     * huge empty particle-filled area sat below (device screenshot 2026-10-24).
+     *
+     * Fix: matchParentSize() (overlay only, not measured by the Box).
+     * Property asserted here: enabling particles must NOT change the
+     * measured height of the input view, and the keyboard must wrap its
+     * content (far below the display height).
+     */
+    @Test
+    fun particles_overlay_never_inflates_ime_window_height() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val metrics = context.resources.displayMetrics
+        val screenHeight = metrics.heightPixels
+
+        fun measuredHeightWith(particles: Boolean): Int {
+            controller.particles.value = particles
+            val inputView = OnyxInputView(context).apply {
+                setContent { OnyxKeyboardScreen(controller) }
+            }
+            val dialog = buildRawImeHierarchy { inputView }
+            dialog.show()
+            ShadowLooper.idleMainLooper()
+            val h = inputView.measuredHeight
+            dialog.dismiss()
+            assertTrue("input view must be laid out", h > 0)
+            return h
+        }
+
+        val withParticles = measuredHeightWith(particles = true)
+        val withoutParticles = measuredHeightWith(particles = false)
+
+        assertTrue(
+            "particle overlay must not change keyboard height " +
+                "(with=${withParticles}px, without=${withoutParticles}px)",
+            kotlin.math.abs(withParticles - withoutParticles) <= 8
+        )
+        assertTrue(
+            "keyboard must wrap content, not fill the screen " +
+                "(measured=${withParticles}px, screen=${screenHeight}px)",
+            withParticles < screenHeight * 0.75
+        )
+    }
+
     private fun android.view.View.findComposeView(): ComposeView? {
         if (this is ComposeView) return this
         val group = this as? ViewGroup ?: return null
