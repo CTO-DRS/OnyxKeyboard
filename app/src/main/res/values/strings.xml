@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Onyx لوحة مفاتيح</string>
+    <string name="ime_name">Onyx لوحة مفاتيح</string>
+    <string name="ime_settings_activity">com.onyx.keyboard.MainActivity</string>
+    <string name="subtype_arabic">Arabic</string>
+    <string name="subtype_english">English</string>
+
+    <!-- Dashboard -->
+    <string name="tagline">The Future of Typing — V 1.0.0</string>
+    <string name="status_active">Onyx is your active keyboard</string>
+    <string name="status_enabled_not_selected">Onyx is enabled — one final step remains</string>
+    <string name="status_disabled">Onyx is not enabled on this device</string>
+    <string name="status_hint_active">Neon engine running. Start typing anywhere.</string>
+    <string name="status_hint_enabled">Open the input-method picker and select Onyx.</string>
+    <string name="status_hint_disabled">Enable Onyx in system settings, then select it.</string>
+    <string name="btn_enable_settings">Enable in system settings</string>
+    <string name="btn_choose_onyx">Choose Onyx now</string>
+    <string name="stats_title">Usage statistics</string>
+    <string name="stat_keystrokes">Keystrokes today</string>
+    <string name="stat_words">Words today</string>
+    <string name="stat_emoji">Emoji today</string>
+    <string name="stat_voice">Voice sessions</string>
+    <string name="stats_total">All-time: %1$s keystrokes · %2$s words</string>
+    <string name="learned_title">Words Onyx learned for you</string>
+    <string name="learned_empty">Onyx learns your style as you type — privately, on-device.</string>
+    <string name="explore_title">Explore Onyx</string>
+    <string name="themes_title">Themes</string>
+    <string name="themes_desc">Neon, Cyber &amp; Hologram looks</string>
+    <string name="profiles_title">Profiles</string>
+    <string name="profiles_desc">Separate memory per profile</string>
+    <string name="privacy_title">Privacy</string>
+    <string name="privacy_desc">Your data never leaves the device</string>
+    <string name="about_title">About</string>
+    <string name="about_desc">Version, stack &amp; credits</string>
+    <string name="privacy_banner">100% on-device. Encrypted with Android Keystore.</string>
+
+    <!-- Themes screen -->
+    <string name="apply_theme">Tap a theme to apply it to the keyboard</string>
+    <string name="current_theme">Active</string>
+
+    <!-- Profiles screen -->
+    <string name="add_profile">New profile</string>
+    <string name="profile_name">Profile name</string>
+    <string name="profile_avatar">Avatar (a letter or symbol)</string>
+    <string name="switch_to">Switch</string>
+    <string name="active_profile">Active</string>
+    <string name="delete">Delete</string>
+    <string name="dictionary_title">Custom dictionary</string>
+    <string name="add_word">Add word</string>
+    <string name="word_hint">Type a word…</string>
+    <string name="shortcuts_title">Smart shortcuts</string>
+    <string name="trigger_hint">Trigger (e.g. brb)</string>
+    <string name="expansion_hint">Expands to (e.g. be right back)</string>
+    <string name="add_shortcut">Add shortcut</string>
+    <string name="empty_list">Nothing here yet</string>
+    <string name="words_count">%1$d words</string>
+
+    <!-- Privacy screen -->
+    <string name="privacy_local_title">Local processing</string>
+    <string name="privacy_local_desc">Every keystroke, suggestion and learned word is computed inside your device. Onyx has no analytics, no accounts and no sync.</string>
+    <string name="privacy_encrypt_title">Encrypted storage</string>
+    <string name="privacy_encrypt_desc">Clipboard history and sensitive data are encrypted with a hardware-backed AES-256/GCM key stored in the Android Keystore.</string>
+    <string name="privacy_permissions_title">Permissions, explained</string>
+    <string name="privacy_perm_vibrate">Vibrate — haptic key feedback (no data).</string>
+    <string name="privacy_perm_mic">Microphone — only when you open the voice panel, uses the system recognizer.</string>
+    <string name="privacy_perm_net">Internet — only for the optional GIF panel; disabled by default.</string>
+    <string name="privacy_voice_note">Voice dictation is handled by the system speech service; Onyx itself never stores recordings.</string>
+    <string name="wipe_learned">Wipe learned words</string>
+    <string name="wipe_clips">Clear clipboard history</string>
+    <string name="confirm_wipe">Confirm wipe</string>
+    <string name="confirm_wipe_msg">This permanently deletes this data from the device. Continue?</string>
+    <string name="cancel">Cancel</string>
+    <string name="confirm">Confirm</string>
+    <string name="mic_permission">Grant microphone access</string>
+
+    <!-- About screen -->
+    <string name="about_version">Version 1.0.0</string>
+    <string name="about_stack">Kotlin · Jetpack Compose · Material 3 · MVVM · Coroutines · Room · NDK/C++</string>
+    <string name="about_build">A true Input Method Service with an on-device intelligence core. Built for the year 2035 — available today.</string>
+    <string name="about_privacy_line">Onyx = beauty + speed + absolute privacy.</string>
+
+    <!-- Keyboard -->
+    <string name="kb_lang_ar">عربي</string>
+    <string name="kb_lang_en">English</string>
+    <string name="panel_emoji">Emoji</string>
+    <string name="panel_clipboard">Clipboard</string>
+    <string name="panel_translate">Instant translate</string>
+    <string name="panel_gif">GIFs</string>
+    <string name="panel_settings">Quick settings</string>
+    <string name="panel_voice">Voice dictation</string>
+    <string name="translate_hint">Type a word or phrase…</string>
+    <string name="translate_use_current">Use current word</string>
+    <string name="translate_none">No offline match found</string>
+    <string name="gif_hint">Search GIFs…</string>
+    <string name="gif_failed">GIF search failed — check connection or disable the panel</string>
+    <string name="gif_disabled">Network GIFs are disabled. Enable them from Quick settings.</string>
+    <string name="voice_listening">Listening…</string>
+    <string name="voice_hint">Tap to dictate — text is inserted live</string>
+    <string name="voice_not_available">Speech recognition is not available on this device</string>
+    <string name="voice_need_mic">Microphone permission is required</string>
+    <string name="voice_error">Voice input error</string>
+    <string name="clipboard_empty">Copied text will appear here</string>
+    <string name="clipboard_paste">Insert</string>
+    <string name="settings_haptics">Haptic feedback</string>
+    <string name="settings_sound">Key sounds</string>
+    <string name="settings_particles">Particle effects</string>
+    <string name="settings_autocorrect">Arabic auto-correct</string>
+    <string name="settings_learning">Local style learning</string>
+    <string name="settings_gifnet">Network GIF panel</string>
+    <string name="settings_theme">Theme</string>
+    <string name="settings_profile">Profile</string>
+    <string name="on">On</string>
+    <string name="off">Off</string>
+</resources>

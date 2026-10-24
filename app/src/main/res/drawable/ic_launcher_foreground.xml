@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Onyx "O" ring with holographic gradient -->
+    <path android:pathData="M54,20 a34,34 0 1,0 0.01,0 Z">
+        <aapt:attr xmlns:aapt="http://schemas.android.com/aapt" name="android:fillColor">
+            <gradient
+                android:startX="24"
+                android:startY="24"
+                android:endX="84"
+                android:endY="84"
+                android:type="linear">
+                <item
+                    android:color="#FFB37BFF"
+                    android:offset="0.0" />
+                <item
+                    android:color="#FF3EE6FF"
+                    android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Inner dark core creating the ring -->
+    <path
+        android:fillColor="#FF0B0B12"
+        android:pathData="M54,38 a16,16 0 1,0 0.01,0 Z" />
+
+    <!-- Glow dot (top-right orbit) -->
+    <path
+        android:fillColor="#FF3EE6FF"
+        android:pathData="M76,30 a5,5 0 1,0 0.01,0 Z" />
+
+    <!-- Glow dot (bottom-left orbit) -->
+    <path
+        android:fillColor="#FFB37BFF"
+        android:pathData="M32,80 a3.5,3.5 0 1,0 0.01,0 Z" />
+</vector>

@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Onyx لوحة مفاتيح</string>
+    <string name="subtype_arabic">العربية</string>
+    <string name="subtype_english">الإنجليزية</string>
+
+    <!-- Dashboard -->
+    <string name="tagline">مستقبل الكتابة — الإصدار 1.0.0</string>
+    <string name="status_active">Onyx هي لوحة مفاتيحك النشطة الآن</string>
+    <string name="status_enabled_not_selected">تم تفعيل Onyx — بقي خطوة أخيرة</string>
+    <string name="status_disabled">لم يتم تفعيل Onyx على هذا الجهاز بعد</string>
+    <string name="status_hint_active">محرك النيون يعمل. ابدأ الكتابة في أي مكان.</string>
+    <string name="status_hint_enabled">افتح قائمة اختيار لوحات المفاتيح واختر Onyx.</string>
+    <string name="status_hint_disabled">فعّل Onyx من إعدادات النظام ثم اخترها كلوحة افتراضية.</string>
+    <string name="btn_enable_settings">التفعيل من إعدادات النظام</string>
+    <string name="btn_choose_onyx">اختر Onyx الآن</string>
+    <string name="stats_title">إحصاءات الاستخدام</string>
+    <string name="stat_keystrokes">ضغطات اليوم</string>
+    <string name="stat_words">كلمات اليوم</string>
+    <string name="stat_emoji">رموز اليوم</string>
+    <string name="stat_voice">جلسات صوتية</string>
+    <string name="stats_total">الإجمالي: %1$s ضغطة · %2$s كلمة</string>
+    <string name="learned_title">كلمات تعلّمتها Onyx منك</string>
+    <string name="learned_empty">تتعلم Onyx أسلوبك أثناء الكتابة — بخصوصية كاملة داخل جهازك.</string>
+    <string name="explore_title">استكشف Onyx</string>
+    <string name="themes_title">الثيمات</string>
+    <string name="themes_desc">نيون وسايبر وهولوجرام</string>
+    <string name="profiles_title">الملفات الشخصية</string>
+    <string name="profiles_desc">ذاكرة منفصلة لكل ملف</string>
+    <string name="privacy_title">الخصوصية</string>
+    <string name="privacy_desc">بياناتك لا تغادر جهازك أبداً</string>
+    <string name="about_title">حول التطبيق</string>
+    <string name="about_desc">الإصدار والتقنيات والفريق</string>
+    <string name="privacy_banner">محلي 100٪. تشفير عبر Android Keystore.</string>
+
+    <!-- Themes screen -->
+    <string name="apply_theme">اضغط على أي ثيم لتطبيقه على لوحة المفاتيح</string>
+    <string name="current_theme">نشط</string>
+
+    <!-- Profiles screen -->
+    <string name="add_profile">ملف جديد</string>
+    <string name="profile_name">اسم الملف</string>
+    <string name="profile_avatar">الرمز (حرف أو رمز)</string>
+    <string name="switch_to">تبديل</string>
+    <string name="active_profile">نشط</string>
+    <string name="delete">حذف</string>
+    <string name="dictionary_title">القاموس المخصص</string>
+    <string name="add_word">إضافة كلمة</string>
+    <string name="word_hint">اكتب كلمة…</string>
+    <string name="shortcuts_title">الاختصارات الذكية</string>
+    <string name="trigger_hint">المختصر (مثال: brb)</string>
+    <string name="expansion_hint">يتوسع إلى (مثال: أعود حالاً)</string>
+    <string name="add_shortcut">إضافة اختصار</string>
+    <string name="empty_list">لا يوجد شيء بعد</string>
+    <string name="words_count">%1$d كلمة</string>
+
+    <!-- Privacy screen -->
+    <string name="privacy_local_title">معالجة محلية</string>
+    <string name="privacy_local_desc">كل ضغطة واقتراح وكلمة متعلمة تُحسب داخل جهازك. لا تحليلات، لا حسابات، لا مزامنة.</string>
+    <string name="privacy_encrypt_title">تخزين مشفر</string>
+    <string name="privacy_encrypt_desc">سجل الحافظة والبيانات الحساسة تُشفَّر بمفتاح AES-256/GCM مدعوم بالعتاد داخل Android Keystore.</string>
+    <string name="privacy_permissions_title">الأذونات موضحة</string>
+    <string name="privacy_perm_vibrate">الاهتزاز — تغذية لمسية للمفاتيح (بدون بيانات).</string>
+    <string name="privacy_perm_mic">الميكروفون — فقط عند فتح لوحة الصوت، عبر أداة النظام.</string>
+    <string name="privacy_perm_net">الإنترنت — فقط للوحة GIF الاختيارية؛ معطلة افتراضياً.</string>
+    <string name="privacy_voice_note">الإملاء الصوتي تعالجه خدمة النظام للتعرف على الكلام؛ لا تحفظ Onyx أي تسجيلات.</string>
+    <string name="wipe_learned">مسح الكلمات المتعلمة</string>
+    <string name="wipe_clips">تفريغ سجل الحافظة</string>
+    <string name="confirm_wipe">تأكيد المسح</string>
+    <string name="confirm_wipe_msg">سيتم حذف هذه البيانات نهائياً من الجهاز. هل تريد المتابعة؟</string>
+    <string name="cancel">إلغاء</string>
+    <string name="confirm">تأكيد</string>
+    <string name="mic_permission">منح صلاحية الميكروفون</string>
+
+    <!-- About screen -->
+    <string name="about_version">الإصدار 1.0.0</string>
+    <string name="about_stack">Kotlin · Jetpack Compose · Material 3 · MVVM · Coroutines · Room · NDK/C++</string>
+    <string name="about_build">خدمة إدخال حقيقية مع نواة ذكاء محلية على الجهاز. صُممت لعام 2035 — ومتاحة اليوم.</string>
+    <string name="about_privacy_line">Onyx = جمال + سرعة + خصوصية مطلقة.</string>
+
+    <!-- Keyboard -->
+    <string name="kb_lang_ar">عربي</string>
+    <string name="kb_lang_en">English</string>
+    <string name="panel_emoji">الرموز</string>
+    <string name="panel_clipboard">الحافظة</string>
+    <string name="panel_translate">ترجمة فورية</string>
+    <string name="panel_gif">صور GIF</string>
+    <string name="panel_settings">إعدادات سريعة</string>
+    <string name="panel_voice">إملاء صوتي</string>
+    <string name="translate_hint">اكتب كلمة أو عبارة…</string>
+    <string name="translate_use_current">استخدم الكلمة الحالية</string>
+    <string name="translate_none">لا توجد مطابقة في المعجم المحلي</string>
+    <string name="gif_hint">ابحث عن GIF…</string>
+    <string name="gif_failed">فشل البحث — تحقق من الاتصال أو عطّل اللوحة</string>
+    <string name="gif_disabled">صور الشبكة معطلة. فعّلها من الإعدادات السريعة.</string>
+    <string name="voice_listening">أستمع إليك…</string>
+    <string name="voice_hint">اضغط للإملاء — يُدرج النص مباشرة</string>
+    <string name="voice_not_available">التعرف على الكلام غير متاح على هذا الجهاز</string>
+    <string name="voice_need_mic">مطلوب منح صلاحية الميكروفون</string>
+    <string name="voice_error">خطأ في الإدخال الصوتي</string>
+    <string name="clipboard_empty">سيظهر النص المنسوخ هنا</string>
+    <string name="clipboard_paste">إدراج</string>
+    <string name="settings_haptics">التغذية اللمسية</string>
+    <string name="settings_sound">أصوات المفاتيح</string>
+    <string name="settings_particles">تأثيرات الجسيمات</string>
+    <string name="settings_autocorrect">تصحيح عربي تلقائي</string>
+    <string name="settings_learning">التعلم المحلي من أسلوبك</string>
+    <string name="settings_gifnet">لوحة GIF من الشبكة</string>
+    <string name="settings_theme">الثيم</string>
+    <string name="settings_profile">الملف الشخصي</string>
+    <string name="on">مفعّل</string>
+    <string name="off">معطّل</string>
+</resources>

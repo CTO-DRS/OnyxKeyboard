@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Onyx Keyboard</string>
+    <string name="ime_name">Onyx Keyboard</string>
+    <string name="ime_settings_activity">com.onyx.keyboard.MainActivity</string>
+</resources>

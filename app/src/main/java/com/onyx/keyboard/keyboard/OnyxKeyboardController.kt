@@ -1,0 +1,420 @@
+package com.onyx.keyboard.keyboard
+
+import android.content.ClipboardManager
+import android.content.Context
+import android.media.AudioManager
+import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
+import android.view.inputmethod.InputConnection
+import androidx.compose.ui.graphics.Color
+import com.onyx.keyboard.data.db.ClipEntity
+import com.onyx.keyboard.data.db.ProfileEntity
+import com.onyx.keyboard.data.db.ThemeEntity
+import com.onyx.keyboard.data.repository.OnyxRepository
+import com.onyx.keyboard.intelligence.Suggestion
+import com.onyx.keyboard.intelligence.SuggestionEngine
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+enum class KeyboardPage { LETTERS, SYMBOLS, EMOJI, CLIPBOARD, TRANSLATE, GIF, SETTINGS, VOICE }
+enum class Lang(val code: String) { AR("ar"), EN("en") }
+enum class ShiftState { OFF, ON, CAPS }
+
+data class GifItem(val id: String, val previewUrl: String, val fullUrl: String)
+
+/**
+ * UI-facing theme colors. The Room entity stores ARGB longs; the keyboard
+ * surface consumes this converted snapshot instead.
+ */
+data class OnyxColors(
+    val id: Long,
+    val name: String,
+    val surfaceTop: Color,
+    val surfaceBottom: Color,
+    val keyFill: Color,
+    val keyText: Color,
+    val accent: Color,
+    val glow: Color,
+    val particle: Color,
+)
+
+fun ThemeEntity.toOnyxColors(): OnyxColors = OnyxColors(
+    id = id,
+    name = name,
+    surfaceTop = Color(surfaceTop),
+    surfaceBottom = Color(surfaceBottom),
+    keyFill = Color(keyFill),
+    keyText = Color(keyText),
+    accent = Color(accent),
+    glow = Color(glow),
+    particle = Color(particle),
+)
+
+/**
+ * State + behavior holder for the IME surface. Owned by OnyxIME (not a ViewModel,
+ * because the service controls the InputConnection lifecycle).
+ */
+class OnyxKeyboardController(
+    val context: Context,
+    private val scope: CoroutineScope,
+    private val repo: OnyxRepository,
+) {
+
+    private val engine = SuggestionEngine(repo)
+
+    /** Last clipboard content seen by the watcher, to avoid duplicate inserts. */
+    private var lastClip: String? = null
+
+    // Wired by the service for voice / gif hardware paths.
+    var voiceHandler: VoiceHandler? = null
+    var gifHandler: GifHandler? = null
+
+    interface VoiceHandler {
+        fun start()
+        fun stop()
+    }
+
+    interface GifHandler {
+        fun insert(item: GifItem)
+    }
+
+    // ------------------------------------------------------------- live state
+    val page = MutableStateFlow(KeyboardPage.LETTERS)
+    val lang = MutableStateFlow(Lang.AR)
+    val shift = MutableStateFlow(ShiftState.OFF)
+    val buffer = MutableStateFlow("")
+    val suggestions = MutableStateFlow<List<Suggestion>>(emptyList())
+    val theme = MutableStateFlow(defaultColors())
+    val profile = MutableStateFlow<ProfileEntity?>(null)
+    val profiles = MutableStateFlow<List<ProfileEntity>>(emptyList())
+    val clips = MutableStateFlow<List<ClipEntity>>(emptyList())
+    val themes = MutableStateFlow<List<ThemeEntity>>(emptyList())
+
+    val haptics = MutableStateFlow(true)
+    val sound = MutableStateFlow(true)
+    val particles = MutableStateFlow(true)
+    val autocorrect = MutableStateFlow(true)
+    val learning = MutableStateFlow(true)
+    val gifNet = MutableStateFlow(false)
+
+    val voiceActive = MutableStateFlow(false)
+    val voiceText = MutableStateFlow("")
+    val voiceError = MutableStateFlow<String?>(null)
+
+    private var ic: InputConnection? = null
+    private var lastShiftTap = 0L
+    private var clipboard: ClipboardManager? =
+        context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+
+    // ------------------------------------------------------------- attach/detach
+
+    fun attach(connection: InputConnection?) {
+        ic = connection
+        buffer.value = ""
+        suggestions.value = emptyList()
+    }
+
+    /** Read-only access for the service's rich-content (GIF) pipeline. */
+    fun icRef(): InputConnection? = ic
+
+    fun detach() {
+        ic = null
+    }
+
+    fun resetForNewField(numeric: Boolean) {
+        buffer.value = ""
+        suggestions.value = emptyList()
+        shift.value = ShiftState.OFF
+        page.value = if (numeric) KeyboardPage.SYMBOLS else KeyboardPage.LETTERS
+    }
+
+    // ------------------------------------------------------------- feedback
+
+    private val vibrator: Vibrator? by lazy {
+        runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                (context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager)
+                    ?.defaultVibrator
+            } else {
+                @Suppress("DEPRECATION")
+                context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+            }
+        }.getOrNull()
+    }
+
+    fun haptic() {
+        if (!haptics.value) return
+        runCatching { vibrator?.vibrate(VibrationEffect.createOneShot(14, 48)) }
+    }
+
+    fun clickSound() {
+        if (!sound.value) return
+        runCatching {
+            val am = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return
+            am.playSoundEffect(AudioManager.FX_KEYPRESS_STANDARD, -1f)
+        }
+    }
+
+    // ------------------------------------------------------------- text input
+
+    fun onChar(raw: String) {
+        haptic(); clickSound()
+        val c = applyCase(raw)
+        buffer.value += c
+        ic?.setComposingText(buffer.value, 1)
+        // Auto-unshift: one uppercase letter, then back to lowercase (EN only).
+        if (lang.value == Lang.EN && shift.value == ShiftState.ON) shift.value = ShiftState.OFF
+        scope.launch { runCatching { repo.bumpKeystrokes() } }
+        updateSuggestions()
+    }
+
+    private fun applyCase(c: String): String =
+        if (lang.value == Lang.EN && shift.value != ShiftState.OFF && c.length == 1) {
+            c.uppercase()
+        } else {
+            c
+        }
+
+    fun onSpace() {
+        haptic(); clickSound()
+        val word = buffer.value.trim()
+        buffer.value = ""
+        suggestions.value = emptyList()
+        scope.launch {
+            if (word.isNotEmpty()) commitWord(word)
+            ic?.commitText(" ", 1)
+        }
+    }
+
+    private suspend fun commitWord(word: String) {
+        val pid = profile.value?.id ?: return
+        // Smart shortcut expansion: "brb" -> user's phrase, transparent replace.
+        val shortcut = repo.findShortcut(pid, word)
+        if (shortcut != null) {
+            ic?.setComposingText(shortcut.expansion, 1)
+            ic?.finishComposingText()
+        } else {
+            ic?.finishComposingText()
+            if (learning.value) repo.recordWord(pid, word, lang.value.code)
+        }
+        repo.bumpWords()
+    }
+
+    fun onBackspace() {
+        haptic(); clickSound()
+        val b = buffer.value
+        if (b.isNotEmpty()) {
+            buffer.value = b.dropLast(1)
+            if (buffer.value.isEmpty()) {
+                ic?.commitText("", 1) // clears composing region
+            } else {
+                ic?.setComposingText(buffer.value, 1)
+            }
+            updateSuggestions()
+        } else {
+            ic?.deleteSurroundingText(1, 0)
+            scope.launch { runCatching { repo.bumpKeystrokes() } }
+        }
+    }
+
+    /** Long-press backspace: delete the whole previous/being-typed word. */
+    fun onBackspaceWord() {
+        haptic()
+        val b = buffer.value
+        if (b.isNotEmpty()) {
+            buffer.value = ""
+            ic?.commitText("", 1)
+        } else {
+            ic?.deleteSurroundingTextInWord()
+        }
+        suggestions.value = emptyList()
+    }
+
+    private fun InputConnection.deleteSurroundingTextInWord() {
+        // Walk back over the word before the cursor.
+        val before = this.getSelectedText(0) ?: ""
+        if (before.isNotEmpty()) {
+            this.commitText("", 1)
+            return
+        }
+        var n = 0
+        val text = this.getTextBeforeCursor(40, 0)?.toString() ?: ""
+        for (ch in text.reversed()) {
+            if (ch.isLetterOrDigit()) n++ else break
+        }
+        if (n > 0) this.deleteSurroundingText(n, 0)
+    }
+
+    fun commitText(text: String) {
+        haptic(); clickSound()
+        ic?.commitText(text, 1)
+        scope.launch { runCatching { repo.bumpKeystrokes() } }
+    }
+
+    fun insertEmoji(e: String) {
+        haptic()
+        buffer.value = ""
+        ic?.finishComposingText()
+        ic?.commitText(e, 1)
+        scope.launch { runCatching { repo.bumpEmojis() } }
+    }
+
+    fun commitSuggestion(s: Suggestion) {
+        haptic()
+        ic?.setComposingText(s.text, 1)
+        buffer.value = s.text
+        onSpace()
+    }
+
+    // ------------------------------------------------------------- suggestions
+
+    private fun updateSuggestions() {
+        val prefix = buffer.value
+        if (prefix.isBlank()) {
+            suggestions.value = emptyList()
+            return
+        }
+        val pid = profile.value?.id ?: return
+        scope.launch {
+            val list = runCatching {
+                engine.suggest(prefix, lang.value.code, pid, autocorrect.value)
+            }.getOrDefault(emptyList())
+            // Only apply if the buffer hasn't moved on.
+            if (buffer.value == prefix) suggestions.value = list
+        }
+    }
+
+    // ------------------------------------------------------------- mode keys
+
+    fun toggleShift() {
+        haptic()
+        val now = System.currentTimeMillis()
+        if (now - lastShiftTap < 350 && shift.value == ShiftState.ON) {
+            shift.value = ShiftState.CAPS
+        } else {
+            shift.value = if (shift.value == ShiftState.OFF) ShiftState.ON else ShiftState.OFF
+        }
+        lastShiftTap = now
+    }
+
+    fun switchLanguage() {
+        haptic()
+        if (buffer.value.isNotEmpty()) ic?.finishComposingText()
+        buffer.value = ""
+        suggestions.value = emptyList()
+        lang.value = if (lang.value == Lang.AR) Lang.EN else Lang.AR
+    }
+
+    fun setPage(p: KeyboardPage) {
+        haptic()
+        if (p != page.value && page.value != KeyboardPage.LETTERS && p == KeyboardPage.LETTERS) {
+            // returning to letters keeps buffer as-is
+        }
+        page.value = p
+    }
+
+    // ------------------------------------------------------------- clipboard
+
+    fun startClipboardWatching() {
+        clipboard?.addPrimaryClipChangedListener {
+            val text = runCatching {
+                clipboard?.primaryClip?.getItemAt(0)?.coerceToText(context)?.toString()
+            }.getOrNull()
+            if (!text.isNullOrBlank() && text != lastClip) {
+                lastClip = text
+                scope.launch(Dispatchers.IO) {
+                    runCatching { repo.addClip(text) }
+                }
+            }
+        }
+    }
+
+    fun pasteClip(clip: ClipEntity) {
+        haptic()
+        scope.launch {
+            val text = runCatching { repo.decryptClip(clip) }.getOrDefault("")
+            if (text.isNotEmpty()) ic?.commitText(text, 1)
+        }
+    }
+
+    /** Exposed so the panel can render a decrypted preview (Keystore-bound). */
+    suspend fun decryptClip(clip: ClipEntity): String =
+        runCatching { repo.decryptClip(clip) }.getOrDefault("")
+
+    fun deleteClip(clip: ClipEntity) {
+        scope.launch { runCatching { repo.deleteClip(clip.id) } }
+    }
+
+    fun toggleClipPin(clip: ClipEntity) {
+        scope.launch { runCatching { repo.setClipPinned(clip.id, !clip.pinned) } }
+    }
+
+    // ------------------------------------------------------------- voice
+
+    fun startVoice() {
+        voiceError.value = null
+        voiceText.value = ""
+        voiceHandler?.start()
+    }
+
+    fun stopVoice() {
+        voiceHandler?.stop()
+    }
+
+    fun onVoicePartial(text: String) {
+        voiceText.value = text
+    }
+
+    fun onVoiceFinal(text: String) {
+        voiceActive.value = false
+        if (text.isNotBlank()) {
+            buffer.value = ""
+            ic?.finishComposingText()
+            ic?.commitText(text, 1)
+            scope.launch { runCatching { repo.bumpVoice() } }
+        }
+    }
+
+    fun onVoiceError(message: String) {
+        voiceActive.value = false
+        voiceError.value = message.ifBlank { null }
+    }
+
+    // ------------------------------------------------------------- settings / themes
+
+    fun setSetting(key: String, value: Boolean) {
+        scope.launch { runCatching { repo.putSetting(key, value.toString()) } }
+    }
+
+    fun switchTheme(themeId: Long) {
+        scope.launch { runCatching { repo.applyTheme(themeId) } }
+    }
+
+    fun switchProfile(profileId: Long) {
+        scope.launch { runCatching { repo.setCurrentProfile(profileId) } }
+    }
+
+    fun insertGif(item: GifItem) {
+        gifHandler?.insert(item)
+    }
+
+    fun onGifInserted() {
+        scope.launch { runCatching { repo.bumpGifs() } }
+    }
+}
+
+/** Keyboard fallback theme, used before Room seeds/loads the real presets. */
+fun defaultTheme(): ThemeEntity = ThemeEntity(
+    id = 1, name = "Onyx Neon",
+    surfaceTop = 0xFF0B0B12, surfaceBottom = 0xFF17121F,
+    keyFill = 0xFF221C33, keyText = 0xFFF2EDFF,
+    accent = 0xFFB37BFF, glow = 0xFF8A5CFF, particle = 0xFFB37BFF
+)
+
+fun defaultColors(): OnyxColors = defaultTheme().toOnyxColors()

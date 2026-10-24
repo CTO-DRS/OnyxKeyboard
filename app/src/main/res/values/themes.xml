@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Onyx" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/onyx_bg</item>
+        <item name="android:statusBarColor">@color/onyx_bg</item>
+        <item name="android:navigationBarColor">@color/onyx_bg</item>
+        <item name="android:colorAccent">@color/onyx_purple</item>
+    </style>
+</resources>
