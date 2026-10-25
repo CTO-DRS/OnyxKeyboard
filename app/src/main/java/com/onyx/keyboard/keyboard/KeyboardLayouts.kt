@@ -40,6 +40,9 @@ object KeyboardLayouts {
         listOf("<", ">", "\$", "«", "»", "…", "≈", "±", "µ", "∞"),
     )
 
+    /** Optional digits row shown above the letters when the user enables it. */
+    val numberRow: List<String> = listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "0")
+
     fun letterRows(lang: Lang, shift: ShiftState): List<List<String>> = when (lang) {
         Lang.AR -> if (shift == ShiftState.OFF) arabicRows else arabicAltRows
         Lang.EN -> if (shift == ShiftState.OFF) englishRows else {

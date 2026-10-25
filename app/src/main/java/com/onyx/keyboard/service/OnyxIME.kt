@@ -111,6 +111,14 @@ class OnyxIME : InputMethodService() {
             repo.observeSetting(OnyxRepository.KEY_GIF_NET, "false")
                 .collectLatest { controller.gifNet.value = it == "true" }
         }
+        scope.launch {
+            repo.observeSetting(OnyxRepository.KEY_NUMBER_ROW, "false")
+                .collectLatest { controller.numberRow.value = it == "true" }
+        }
+        scope.launch {
+            repo.observeSetting(OnyxRepository.KEY_RECENT_EMOJI, "")
+                .collectLatest { controller.recentEmojis.value = controller.parseRecentEmojis(it) }
+        }
     }
 
     // ------------------------------------------------------------ IME surface
@@ -222,7 +230,8 @@ class OnyxIME : InputMethodService() {
                         RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
                     )
                     putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ar")
+                    // Dictation follows the active keyboard language.
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, controller.lang.value.code)
                 }
             )
         }

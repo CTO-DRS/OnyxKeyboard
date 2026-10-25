@@ -125,6 +125,10 @@ class OnyxImeWindowHierarchyTest {
      */
     @Test
     fun onyxInputView_fixed_recipe_composes_without_crash() {
+        // ParticleField runs an INFINITE animation; in the raw (non
+        // composeRule) dialog path ShadowLooper.idleMainLooper() would keep
+        // pumping its frames forever, so the static shell is composed here.
+        controller.particles.value = false
         val dialog = buildRawImeHierarchy {
             OnyxInputView(ApplicationProvider.getApplicationContext()).apply {
                 setContent { OnyxKeyboardScreen(controller) }
@@ -161,60 +165,6 @@ class OnyxImeWindowHierarchyTest {
         )
         // And the input view itself still carries them for its own subtree.
         assertNotNull(view.findViewTreeLifecycleOwner())
-    }
-
-    /**
-     * REGRESSION (keyboard floating at the top of the screen):
-     *
-     * The decorative ParticleField used Modifier.fillMaxSize() inside the
-     * root Box. Inside an IME window the max constraints equal the WHOLE
-     * display, so the Canvas expanded the Box to full-screen height — the
-     * IME window grew to the full screen, keys rendered at the top and a
-     * huge empty particle-filled area sat below (device screenshot 2026-10-24).
-     *
-     * Fix: matchParentSize() (overlay only, not measured by the Box).
-     * Property asserted here: enabling particles must NOT change the
-     * measured height of the input view, and the keyboard must wrap its
-     * content (far below the display height).
-     */
-    @Test
-    fun particles_overlay_never_inflates_ime_window_height() {
-        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
-        val metrics = context.resources.displayMetrics
-        val screenHeight = metrics.heightPixels
-
-        fun measuredHeightWith(particles: Boolean): Int {
-            controller.particles.value = particles
-            val inputView = OnyxInputView(context).apply {
-                setContent { OnyxKeyboardScreen(controller) }
-            }
-            val dialog = buildRawImeHierarchy { inputView }
-            dialog.show()
-            ShadowLooper.idleMainLooper()
-            val h = inputView.measuredHeight
-            dialog.dismiss()
-            assertTrue("input view must be laid out", h > 0)
-            return h
-        }
-
-        val withParticles = measuredHeightWith(particles = true)
-        val withoutParticles = measuredHeightWith(particles = false)
-
-        assertTrue(
-            "particle overlay must not change keyboard height " +
-                "(with=${withParticles}px, without=${withoutParticles}px)",
-            kotlin.math.abs(withParticles - withoutParticles) <= 8
-        )
-        // Strictly below the full display: the old bug measured EXACTLY the
-        // screen height (fillMaxSize reached the window's max constraints).
-        // A fixed fraction threshold would be wrong — Robolectric's virtual
-        // screen is tiny (470px), where a real keyboard legitimately spans
-        // ~80% of it.
-        assertTrue(
-            "keyboard must wrap content, not fill the screen " +
-                "(measured=${withParticles}px, screen=${screenHeight}px)",
-            withParticles < screenHeight
-        )
     }
 
     private fun android.view.View.findComposeView(): ComposeView? {

@@ -1,11 +1,22 @@
 package com.onyx.keyboard
 
 import android.widget.FrameLayout
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
+import com.onyx.keyboard.ui.components.ParticleField
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ApplicationProvider
+import org.junit.Assert.assertEquals
 import com.onyx.keyboard.keyboard.OnyxInputView
 import com.onyx.keyboard.keyboard.OnyxKeyboardController
 import com.onyx.keyboard.keyboard.OnyxKeyboardScreen
@@ -35,6 +46,11 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], application = OnyxApp::class)
 class OnyxImeCrashReproTest {
+
+    private companion object {
+        const val KB_ROOT_TAG = "onyx_kb_root"
+        const val KB_HOST_TAG = "onyx_kb_host"
+    }
 
     @get:Rule
     val composeRule = createComposeRule()
@@ -168,5 +184,70 @@ class OnyxImeCrashReproTest {
             val list = repo.prefixMatch(profile.id, "مر", 10)
             assert(list.isNotEmpty()) { "prefix match should find مرحبا" }
         }
+    }
+
+    /**
+     * REGRESSION (keyboard floating at the top of the screen):
+     *
+     * The decorative ParticleField used to hang off Modifier.fillMaxSize()
+     * inside the screen root Box. Inside an IME window the max constraints
+     * equal the WHOLE display, so the Canvas expanded the Box to full-screen
+     * height — the keyboard window grew to the full screen, keys rendered at
+     * the top with a huge empty particle area below (screenshot 2026-10-24).
+     * The fix is Modifier.matchParentSize() — an overlay that is NOT measured
+     * by the parent Box, so the Box wraps its real content.
+     *
+     * Two deterministic assertions:
+     *  A) MECHANISM — a matchParentSize overlay inside a FIXED-height host
+     *     cannot change that host's height (the overlay is never measured).
+     *  B) SCREEN — toggling particles ON/OFF must not change the composed
+     *     screen height (the overlay is purely decorative).
+     */
+    @Test
+    fun particles_overlay_never_inflates_ime_window_height() {
+        // Single composition containing both probes (setContent is once-only).
+        composeRule.setContent {
+            // A) mechanism — matchParentSize overlay inside a FIXED host.
+            Box(Modifier.fillMaxWidth().height(120.dp).testTag(KB_HOST_TAG)) {
+                ParticleField(
+                    modifier = Modifier.matchParentSize(),
+                    color = Color.Red,
+                    count = 5
+                )
+            }
+            // B) screen — the real surface inside a fillMaxSize shell that
+            // absorbs the host window's exact constraints.
+            Box(Modifier.fillMaxSize()) {
+                Box(Modifier.fillMaxWidth().testTag(KB_ROOT_TAG)) {
+                    OnyxKeyboardScreen(controller)
+                }
+            }
+        }
+
+        fun hostHeight(): Int =
+            composeRule.onNodeWithTag(KB_HOST_TAG).fetchSemanticsNode().size.height
+        fun screenHeight(): Int =
+            composeRule.onNodeWithTag(KB_ROOT_TAG).fetchSemanticsNode().size.height
+
+        val hostPx = with(composeRule.density) { 120.dp.roundToPx() }
+
+        controller.particles.value = true
+        composeRule.waitForIdle()
+        val hostWith = hostHeight()
+        val screenWith = screenHeight()
+
+        controller.particles.value = false
+        composeRule.waitForIdle()
+        val screenWithout = screenHeight()
+
+        assertEquals(
+            "matchParentSize overlay must not inflate its fixed host",
+            hostPx, hostWith
+        )
+        assertEquals(
+            "particle overlay must not change keyboard height " +
+                "(with=$screenWith px, without=$screenWithout px)",
+            screenWith, screenWithout
+        )
     }
 }

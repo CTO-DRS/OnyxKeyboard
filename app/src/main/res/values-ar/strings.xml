@@ -106,6 +106,8 @@
     <string name="settings_autocorrect">تصحيح عربي تلقائي</string>
     <string name="settings_learning">التعلم المحلي من أسلوبك</string>
     <string name="settings_gifnet">لوحة GIF من الشبكة</string>
+    <string name="settings_number_row">صف الأرقام</string>
+    <string name="emoji_recent">الأحدث</string>
     <string name="settings_theme">الثيم</string>
     <string name="settings_profile">الملف الشخصي</string>
     <string name="on">مفعّل</string>

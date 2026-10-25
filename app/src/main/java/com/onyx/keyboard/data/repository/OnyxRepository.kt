@@ -48,6 +48,8 @@ class OnyxRepository private constructor(context: Context) {
         const val KEY_AUTOCORRECT = "autocorrect"
         const val KEY_LEARNING = "learning"
         const val KEY_GIF_NET = "gif_net"
+        const val KEY_NUMBER_ROW = "number_row"
+        const val KEY_RECENT_EMOJI = "recent_emoji"
         const val MAX_CLIPS = 30
 
         @Volatile

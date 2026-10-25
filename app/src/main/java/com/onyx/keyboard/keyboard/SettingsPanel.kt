@@ -61,6 +61,9 @@ fun SettingsPanel(controller: OnyxKeyboardController) {
         ToggleRow(controller, stringResource(R.string.settings_particles), controller.particles) {
             controller.setSetting(OnyxRepository.KEY_PARTICLES, it)
         }
+        ToggleRow(controller, stringResource(R.string.settings_number_row), controller.numberRow) {
+            controller.setSetting(OnyxRepository.KEY_NUMBER_ROW, it)
+        }
         ToggleRow(controller, stringResource(R.string.settings_autocorrect), controller.autocorrect) {
             controller.setSetting(OnyxRepository.KEY_AUTOCORRECT, it)
         }

@@ -32,6 +32,12 @@ internal val SENTENCE_TERMINATORS = ".!?".toSet()
 data class GifItem(val id: String, val previewUrl: String, val fullUrl: String)
 
 /**
+ * An active long-press alternatives request: the key that was held and the
+ * characters that can be picked from the alternatives strip.
+ */
+data class AltRequest(val anchor: String, val options: List<String>)
+
+/**
  * UI-facing theme colors. The Room entity stores ARGB longs; the keyboard
  * surface consumes this converted snapshot instead.
  */
@@ -115,12 +121,25 @@ class OnyxKeyboardController(
     val learning = MutableStateFlow(true)
     val gifNet = MutableStateFlow(false)
 
+    /** Show a dedicated 1..0 row above the letters (user preference). */
+    val numberRow = MutableStateFlow(false)
+
+    /** Most-recently used emojis (parsed from the settings table). */
+    val recentEmojis = MutableStateFlow<List<String>>(emptyList())
+
+    /** Active long-press alternatives popup (null = hidden). */
+    val altPopup = MutableStateFlow<AltRequest?>(null)
+
     val voiceActive = MutableStateFlow(false)
     val voiceText = MutableStateFlow("")
     val voiceError = MutableStateFlow<String?>(null)
 
     private var ic: InputConnection? = null
     private var lastShiftTap = 0L
+
+    // Double-space -> period tracking (set only by a committed space).
+    private var lastCommitWasSpace = false
+    private var lastSpaceAt = 0L
     private var clipboard: ClipboardManager? =
         context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
 
@@ -130,6 +149,8 @@ class OnyxKeyboardController(
         ic = connection
         buffer.value = ""
         suggestions.value = emptyList()
+        lastCommitWasSpace = false
+        altPopup.value = null
     }
 
     /** Read-only access for the service's rich-content (GIF) pipeline. */
@@ -146,6 +167,8 @@ class OnyxKeyboardController(
         suggestions.value = emptyList()
         shift.value = ShiftState.OFF
         autoCapNext.value = false
+        lastCommitWasSpace = false
+        altPopup.value = null
         enterActionId = if (numeric) 0 else editorActionId
         page.value = if (numeric) KeyboardPage.SYMBOLS else KeyboardPage.LETTERS
     }
@@ -185,11 +208,53 @@ class OnyxKeyboardController(
         buffer.value += c
         ic?.setComposingText(buffer.value, 1)
         autoCapNext.value = false
+        lastCommitWasSpace = false
         // Auto-unshift: one uppercase letter, then back to lowercase (EN only).
         if (lang.value == Lang.EN && shift.value == ShiftState.ON) shift.value = ShiftState.OFF
         scope.launch { runCatching { repo.bumpKeystrokes() } }
         updateSuggestions()
     }
+
+    /**
+     * Types a long-press alternative (accent / hamza carrier / haraka).
+     * Unlike [onChar] the character is NEVER case-transformed — "é" must
+     * stay "é" even when shift is armed. It still joins the composing word
+     * so suggestions and learning keep working.
+     */
+    fun onAltChar(raw: String) {
+        altPopup.value = null
+        haptic(); clickSound()
+        buffer.value += raw
+        ic?.setComposingText(buffer.value, 1)
+        autoCapNext.value = false
+        lastCommitWasSpace = false
+        scope.launch { runCatching { repo.bumpKeystrokes() } }
+        updateSuggestions()
+    }
+
+    // ------------------------------------------------------------- alt popup
+
+    /** Opens the alternatives strip for a held letter key (if it has any). */
+    fun openAltPopup(key: String) {
+        val options = AltChars.alternativesFor(lang.value, key) ?: return
+        haptic()
+        altPopup.value = AltRequest(key, options)
+    }
+
+    /** Space long-press: Arabic tashkeel strip (no-op in English). */
+    fun openSpacePopup() {
+        if (lang.value != Lang.AR) return
+        haptic()
+        altPopup.value = AltRequest(" ", AltChars.harakat)
+    }
+
+    fun closeAltPopup() {
+        altPopup.value = null
+    }
+
+    /** Parses the persisted recent-emoji string (control-char separated). */
+    fun parseRecentEmojis(raw: String): List<String> =
+        raw.split('\u0001').map { it.trim() }.filter { it.isNotEmpty() }.distinct()
 
     private fun applyCase(c: String): String =
         if (lang.value == Lang.EN && c.length == 1 &&
@@ -202,9 +267,28 @@ class OnyxKeyboardController(
 
     fun onSpace() {
         haptic(); clickSound()
-        val word = buffer.value.trim()
+        val now = System.currentTimeMillis()
+        val b = buffer.value
+
+        // Double-space -> ". ": replaces the space inserted by the previous
+        // tap when both taps happen quickly on an empty composing buffer
+        // (i.e. right after a word was committed). Standard IME behaviour.
+        if (b.isEmpty() && lastCommitWasSpace && now - lastSpaceAt < 380) {
+            lastCommitWasSpace = false
+            lastSpaceAt = 0
+            ic?.deleteSurroundingText(1, 0)
+            ic?.commitText(". ", 1)
+            scope.launch { runCatching { repo.bumpKeystrokes() } }
+            return
+        }
+
+        // Learn the word WITHOUT harakat so the dictionary stays clean —
+        // the harakat themselves remain in the committed text.
+        val word = AltChars.stripHarakat(b.trim())
         buffer.value = ""
         suggestions.value = emptyList()
+        lastCommitWasSpace = true
+        lastSpaceAt = now
         scope.launch {
             if (word.isNotEmpty()) commitWord(word)
             ic?.commitText(" ", 1)
@@ -227,6 +311,7 @@ class OnyxKeyboardController(
 
     fun onBackspace() {
         haptic(); clickSound()
+        lastCommitWasSpace = false
         val b = buffer.value
         if (b.isNotEmpty()) {
             buffer.value = b.dropLast(1)
@@ -272,6 +357,7 @@ class OnyxKeyboardController(
 
     fun commitText(text: String) {
         haptic(); clickSound()
+        lastCommitWasSpace = false
         ic?.commitText(text, 1)
         // Sentence terminator -> auto-capitalize the next English letter.
         if (lang.value == Lang.EN && text.length == 1 && text[0] in SENTENCE_TERMINATORS) {
@@ -288,6 +374,7 @@ class OnyxKeyboardController(
         haptic(); clickSound()
         buffer.value = ""
         suggestions.value = emptyList()
+        lastCommitWasSpace = false
         if (enterActionId != 0) {
             ic?.performEditorAction(enterActionId)
         } else {
@@ -300,9 +387,23 @@ class OnyxKeyboardController(
     fun insertEmoji(e: String) {
         haptic()
         buffer.value = ""
+        suggestions.value = emptyList()
+        lastCommitWasSpace = false
         ic?.finishComposingText()
         ic?.commitText(e, 1)
+        recordRecentEmoji(e)
         scope.launch { runCatching { repo.bumpEmojis() } }
+    }
+
+    /** Keeps the 24 most recently used emojis, newest first, persisted. */
+    private fun recordRecentEmoji(e: String) {
+        val cur = recentEmojis.value.toMutableList()
+        cur.remove(e)
+        cur.add(0, e)
+        while (cur.size > 24) cur.removeAt(cur.lastIndex)
+        recentEmojis.value = cur
+        val persisted = cur.joinToString("\u0001")
+        scope.launch { runCatching { repo.putSetting(OnyxRepository.KEY_RECENT_EMOJI, persisted) } }
     }
 
     fun commitSuggestion(s: Suggestion) {
@@ -406,6 +507,7 @@ class OnyxKeyboardController(
 
     fun pasteClip(clip: ClipEntity) {
         haptic()
+        lastCommitWasSpace = false
         scope.launch {
             val text = runCatching { repo.decryptClip(clip) }.getOrDefault("")
             if (text.isNotEmpty()) ic?.commitText(text, 1)

@@ -39,7 +39,9 @@ import kotlinx.coroutines.delay
 /**
  * A single neon-glass key. Pressed state triggers: scale-down, glow bloom,
  * gradient border intensification — plus the controller's haptic/sound path.
+ * Optional [onLongClick] powers long-press alternative characters.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun RowScope.KeyButton(
     label: String,
@@ -53,6 +55,7 @@ fun RowScope.KeyButton(
     height: Dp = 52.dp,
     fontSize: Int = 18,
     fontWeight: FontWeight = FontWeight.Medium,
+    onLongClick: (() -> Unit)? = null,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
@@ -92,7 +95,12 @@ fun RowScope.KeyButton(
                 ),
                 shape = RoundedCornerShape(14.dp)
             )
-            .clickable(interactionSource = interaction, indication = null) { onClick() },
+            .combinedClickable(
+                interactionSource = interaction,
+                indication = null,
+                onClick = onClick,
+                onLongClick = onLongClick
+            ),
         contentAlignment = Alignment.Center
     ) {
         Text(

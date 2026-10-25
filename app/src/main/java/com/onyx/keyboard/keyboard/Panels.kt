@@ -29,9 +29,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.onyx.keyboard.R
 
 @Composable
 internal fun PanelHeader(controller: OnyxKeyboardController, title: String) {
@@ -61,9 +63,13 @@ internal fun PanelHeader(controller: OnyxKeyboardController, title: String) {
     }
 }
 
+/** Special category index for the recently-used emojis row. */
+internal const val EMOJI_CATEGORY_RECENT = -1
+
 @Composable
 fun EmojiPanel(controller: OnyxKeyboardController) {
     val theme by controller.theme.collectAsState()
+    val recent by controller.recentEmojis.collectAsState()
     var category by remember { mutableStateOf(0) }
     val cats = EmojiCatalog.categories
 
@@ -75,6 +81,19 @@ fun EmojiPanel(controller: OnyxKeyboardController) {
                 .padding(horizontal = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
+            if (recent.isNotEmpty()) {
+                FilterChip(
+                    selected = category == EMOJI_CATEGORY_RECENT,
+                    onClick = { category = EMOJI_CATEGORY_RECENT },
+                    label = { Text(stringResource(R.string.emoji_recent), fontSize = 11.sp) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        containerColor = theme.keyFill.copy(alpha = 0.6f),
+                        selectedContainerColor = theme.accent.copy(alpha = 0.35f),
+                        labelColor = theme.keyText.copy(alpha = 0.85f),
+                        selectedLabelColor = theme.keyText
+                    )
+                )
+            }
             cats.forEachIndexed { i, cat ->
                 FilterChip(
                     selected = category == i,
@@ -97,7 +116,9 @@ fun EmojiPanel(controller: OnyxKeyboardController) {
             horizontalArrangement = Arrangement.spacedBy(2.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
-            items(cats[category.coerceIn(0, cats.lastIndex)].emojis) { e ->
+            val emojis = if (category == EMOJI_CATEGORY_RECENT) recent
+            else cats[category.coerceIn(0, cats.lastIndex)].emojis
+            items(emojis) { e ->
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
