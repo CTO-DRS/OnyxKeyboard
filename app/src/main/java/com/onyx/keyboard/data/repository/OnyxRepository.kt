@@ -34,11 +34,13 @@ class OnyxRepository private constructor(context: Context) {
     private val db: OnyxDatabase = OnyxDatabase.get(context)
     private val profileDao: ProfileDao = db.profileDao()
     private val wordDao: WordDao = db.wordDao()
-    private val themeDao: ThemeDao = db.themeDao()
     private val shortcutDao: ShortcutDao = db.shortcutDao()
     private val clipDao: ClipDao = db.clipDao()
     private val statsDao = db.statsDao()
     val settings: SettingsDao = db.settingsDao()
+
+    /** Same-module access (tests + future admin UI) to verify theme seeding. */
+    internal val themeDao: ThemeDao = db.themeDao()
 
     companion object {
         const val KEY_CURRENT_PROFILE = "current_profile_id"
@@ -50,6 +52,8 @@ class OnyxRepository private constructor(context: Context) {
         const val KEY_GIF_NET = "gif_net"
         const val KEY_NUMBER_ROW = "number_row"
         const val KEY_RECENT_EMOJI = "recent_emoji"
+        /** Follow the system day/night mode and swap between light/dark presets. */
+        const val KEY_AUTO_THEME = "auto_theme"
         const val MAX_CLIPS = 30
 
         @Volatile
@@ -244,10 +248,16 @@ class OnyxRepository private constructor(context: Context) {
 
     // ---------------------------------------------------------------- seeding
 
-    /** Idempotent: inserts default themes + a starter profile on first run. */
+    /**
+     * Idempotent: inserts default themes + a starter profile on first run.
+     * Upgrade path: any FACTORY theme missing from the table (e.g. the light
+     * presets added after an older install) is inserted too, without touching
+     * themes the user may have customized.
+     */
     suspend fun ensureSeeded() {
-        if (themeDao.count() == 0) {
-            themeDao.insertAll(defaultThemes())
+        val missing = defaultThemes().filter { themeDao.byId(it.id) == null }
+        if (missing.isNotEmpty()) {
+            themeDao.insertAll(missing)
         }
         if (profileDao.count() == 0) {
             val id = profileDao.insert(
@@ -260,7 +270,11 @@ class OnyxRepository private constructor(context: Context) {
     }
 }
 
-/** Factory defaults — six glass/neon looks seeded into Room so users can add their own later. */
+/**
+ * Factory defaults — eight glass/neon looks seeded into Room so users can add
+ * their own later. Ids 1-6 are the original dark presets; ids 7-8 are the
+ * LIGHT presets used by the auto day/night theme mode.
+ */
 fun defaultThemes(): List<ThemeEntity> = listOf(
     ThemeEntity(
         id = 1, name = "Onyx Neon",
@@ -297,5 +311,17 @@ fun defaultThemes(): List<ThemeEntity> = listOf(
         surfaceTop = 0xFF080B16, surfaceBottom = 0xFF111631,
         keyFill = 0xFF1A2140, keyText = 0xFFE8ECFF,
         accent = 0xFF7C9EFF, glow = 0xFF536DFE, particle = 0xFF7C9EFF
+    ),
+    ThemeEntity(
+        id = 7, name = "Frost Light",
+        surfaceTop = 0xFFF4F6FB, surfaceBottom = 0xFFE4E9F4,
+        keyFill = 0xFFFFFFFF, keyText = 0xFF1B2130,
+        accent = 0xFF6C4DFF, glow = 0xFF9E7BFF, particle = 0xFF8A6CFF
+    ),
+    ThemeEntity(
+        id = 8, name = "Dawn Light",
+        surfaceTop = 0xFFFDF4EC, surfaceBottom = 0xFFF6E7DC,
+        keyFill = 0xFFFFFFFF, keyText = 0xFF33261C,
+        accent = 0xFFE0653A, glow = 0xFFFF8A50, particle = 0xFFFF8A50
     ),
 )

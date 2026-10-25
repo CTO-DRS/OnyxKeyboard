@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -45,10 +46,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.onyx.keyboard.ui.components.ParticleField
+import kotlin.math.abs
 
 /**
  * The full Onyx IME surface: particle background, smart toolbar,
@@ -67,7 +70,11 @@ fun OnyxKeyboardScreen(controller: OnyxKeyboardController) {
                 Brush.verticalGradient(listOf(theme.surfaceTop, theme.surfaceBottom))
             )
     ) {
-        if (controller.particles.collectAsState().value) {
+        if (controller.particles.collectAsState().value &&
+            !controller.powerSave.collectAsState().value
+        ) {
+            // Battery saver pauses the particle field (continuous repaints are
+            // the single most expensive thing on this surface).
             ParticleField(
                 // CRITICAL FIX (keyboard floating at top of screen):
                 // fillMaxSize() made this Canvas fill the entire IME window's
@@ -262,17 +269,7 @@ private fun SymbolsPage(controller: OnyxKeyboardController) {
                 height = 50.dp,
                 fontSize = 14
             )
-            KeyIcon(
-                icon = Icons.Filled.SpaceBar,
-                contentDescription = "Space",
-                accent = theme.accent,
-                glow = theme.glow,
-                keyFill = theme.keyFill,
-                keyText = theme.keyText,
-                onClick = { controller.onSpace() },
-                weight = 4.5f,
-                height = 50.dp
-            )
+            SpaceWithCursorSlide(controller, weight = 4.5f)
             KeyIcon(
                 icon = Icons.AutoMirrored.Filled.KeyboardReturn,
                 contentDescription = "Enter",
@@ -335,17 +332,10 @@ private fun BottomRow(controller: OnyxKeyboardController) {
                 )
             }
         }
-        KeyIcon(
-            icon = Icons.Filled.SpaceBar,
-            contentDescription = "Space",
-            accent = theme.accent,
-            glow = theme.glow,
-            keyFill = theme.keyFill,
-            keyText = theme.keyText.copy(alpha = 0.75f),
-            onClick = { controller.onSpace() },
-            onLongClick = { controller.openSpacePopup() },
+        SpaceWithCursorSlide(
+            controller = controller,
             weight = 5f,
-            height = 50.dp
+            onLongClick = { controller.openSpacePopup() }
         )
         KeyIcon(
             icon = Icons.AutoMirrored.Filled.KeyboardReturn,
@@ -419,6 +409,57 @@ private fun AlternativesStrip(
                     fontWeight = FontWeight.Medium
                 )
             }
+        }
+    }
+}
+
+/**
+ * The space key with a hidden superpower: drag horizontally across it to
+ * slide the text cursor character-by-character (the classic "space bar
+ * cursor" gesture). A plain TAP still types a space, and [onLongClick]
+ * (harakat strip) still works — the drag only kicks in after horizontal
+ * touch slop, which also cancels the tap/long-press path.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun RowScope.SpaceWithCursorSlide(
+    controller: OnyxKeyboardController,
+    weight: Float,
+    onLongClick: (() -> Unit)? = null,
+) {
+    val theme by controller.theme.collectAsState()
+    val density = LocalDensity.current
+    val slider = remember(density) {
+        CursorDrag(with(density) { CursorDrag.STEP_DP.dp.toPx() })
+    }
+
+    Box(
+        modifier = Modifier
+            .weight(weight)
+            .pointerInput(Unit) {
+                detectHorizontalDragGestures(
+                    onDragStart = { slider.reset() }
+                ) { change, dragAmount ->
+                    change.consume()
+                    val steps = slider.onDelta(dragAmount)
+                    val dir = if (steps > 0) 1 else -1
+                    repeat(abs(steps)) { controller.moveCursor(dir) }
+                }
+            }
+    ) {
+        Row(modifier = Modifier.fillMaxSize()) {
+            KeyIcon(
+                icon = Icons.Filled.SpaceBar,
+                contentDescription = "Space",
+                accent = theme.accent,
+                glow = theme.glow,
+                keyFill = theme.keyFill,
+                keyText = theme.keyText.copy(alpha = 0.75f),
+                onClick = { controller.onSpace() },
+                onLongClick = onLongClick,
+                weight = 1f,
+                height = 50.dp
+            )
         }
     }
 }

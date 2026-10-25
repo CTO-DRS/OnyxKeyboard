@@ -1,9 +1,13 @@
 package com.onyx.keyboard.service
 
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
+import android.content.res.Configuration
 import android.inputmethodservice.InputMethodService
 import android.net.Uri
+import android.os.PowerManager
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
@@ -24,7 +28,7 @@ import com.onyx.keyboard.keyboard.GifItem
 import com.onyx.keyboard.keyboard.OnyxInputView
 import com.onyx.keyboard.keyboard.OnyxKeyboardController
 import com.onyx.keyboard.keyboard.OnyxKeyboardScreen
-import com.onyx.keyboard.keyboard.toOnyxColors
+import com.onyx.keyboard.network.GifHttp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -33,7 +37,6 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.net.URL
 
 /**
  * Onyx Input Method Service — a real system keyboard driven entirely by
@@ -52,6 +55,14 @@ class OnyxIME : InputMethodService() {
     private var inputView: OnyxInputView? = null
     private var recognizer: SpeechRecognizer? = null
 
+    /** Keeps [OnyxKeyboardController.powerSave] in sync with the system battery saver. */
+    private val powerSaveReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            controller.powerSave.value =
+                (getSystemService(Context.POWER_SERVICE) as? PowerManager)?.isPowerSaveMode ?: false
+        }
+    }
+
     override fun onCreate() {
         super.onCreate()
         repo = AppGraph.repo
@@ -66,6 +77,19 @@ class OnyxIME : InputMethodService() {
             override fun insert(item: GifItem) = commitGif(item)
         }
 
+        // Auto day/night theme + battery-saver awareness.
+        refreshSystemDark()
+        controller.powerSave.value =
+            (getSystemService(Context.POWER_SERVICE) as? PowerManager)?.isPowerSaveMode ?: false
+        runCatching {
+            ContextCompat.registerReceiver(
+                this,
+                powerSaveReceiver,
+                IntentFilter(PowerManager.ACTION_POWER_SAVE_MODE_CHANGED),
+                ContextCompat.RECEIVER_NOT_EXPORTED
+            )
+        }.onFailure { Log.w(TAG, "power-save receiver registration failed", it) }
+
         controller.startClipboardWatching()
         observeRepository()
     }
@@ -73,10 +97,16 @@ class OnyxIME : InputMethodService() {
     /** Streams DB state (theme, settings, profiles, clips) into the UI controller. */
     private fun observeRepository() {
         scope.launch {
-            repo.observeKeyboardTheme().collectLatest { controller.theme.value = it.toOnyxColors() }
+            repo.observeKeyboardTheme().collectLatest {
+                controller.userTheme.value = it
+                controller.refreshTheme()
+            }
         }
         scope.launch {
-            repo.observeThemes().collectLatest { controller.themes.value = it }
+            repo.observeThemes().collectLatest {
+                controller.themes.value = it
+                controller.refreshTheme()
+            }
         }
         scope.launch {
             repo.observeProfiles().collectLatest { controller.profiles.value = it }
@@ -119,6 +149,33 @@ class OnyxIME : InputMethodService() {
             repo.observeSetting(OnyxRepository.KEY_RECENT_EMOJI, "")
                 .collectLatest { controller.recentEmojis.value = controller.parseRecentEmojis(it) }
         }
+        scope.launch {
+            repo.observeSetting(OnyxRepository.KEY_AUTO_THEME, "false")
+                .collectLatest {
+                    controller.autoTheme.value = it == "true"
+                    controller.refreshTheme()
+                }
+        }
+    }
+
+    /**
+     * Night-mode tracking for the auto day/night theme. Checked at startup
+     * and on every configuration change (rotation, theme toggle, split-screen…).
+     */
+    private fun refreshSystemDark() {
+        controller.systemDark.value = when (
+            resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
+        ) {
+            Configuration.UI_MODE_NIGHT_YES -> true
+            Configuration.UI_MODE_NIGHT_NO -> false
+            else -> null
+        }
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        refreshSystemDark()
+        controller.refreshTheme()
     }
 
     // ------------------------------------------------------------ IME surface
@@ -198,6 +255,7 @@ class OnyxIME : InputMethodService() {
     }
 
     override fun onDestroy() {
+        runCatching { unregisterReceiver(powerSaveReceiver) }
         stopVoiceRecognition()
         inputView?.dispose()
         inputView = null
@@ -285,7 +343,9 @@ class OnyxIME : InputMethodService() {
         scope.launch {
             val ok = withContext(Dispatchers.IO) {
                 runCatching {
-                    val bytes = URL(item.fullUrl).readBytes()
+                    // Hardened fetch: timeouts + size cap + content-type gate.
+                    // Null on any failure — fall back to the plain URL below.
+                    val bytes = GifHttp.fetch(item.fullUrl) ?: return@runCatching false
                     val dir = File(cacheDir, "gifs").apply { mkdirs() }
                     val file = File(dir, "onyx_${System.currentTimeMillis()}.gif")
                     file.writeBytes(bytes)

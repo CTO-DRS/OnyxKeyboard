@@ -105,6 +105,7 @@
     <string name="settings_haptics">Haptic feedback</string>
     <string name="settings_sound">Key sounds</string>
     <string name="settings_particles">Particle effects</string>
+    <string name="settings_auto_theme">Auto day/night theme (follow system)</string>
     <string name="settings_autocorrect">Arabic auto-correct</string>
     <string name="settings_learning">Local style learning</string>
     <string name="settings_gifnet">Network GIF panel</string>

@@ -29,6 +29,40 @@ enum class ShiftState { OFF, ON, CAPS }
 
 internal val SENTENCE_TERMINATORS = ".!?".toSet()
 
+/** Perceived luminance (0..1) of an ARGB color — decides light vs dark presets. */
+internal fun luminanceOf(argb: Long): Float {
+    val r = ((argb shr 16) and 0xFF) / 255f
+    val g = ((argb shr 8) and 0xFF) / 255f
+    val b = (argb and 0xFF) / 255f
+    return 0.2126f * r + 0.7152f * g + 0.0722f * b
+}
+
+/** A preset is "light" when its dominant surface is bright. */
+fun ThemeEntity.isLight(): Boolean = luminanceOf(surfaceTop) > 0.5f
+
+/**
+ * Theme resolution for the auto day/night mode — a PURE function so it is
+ * directly unit-testable.
+ *
+ * @param selected the user's chosen preset (null = not loaded yet → default)
+ * @param pool     all presets available for fallback picking
+ * @param auto     whether "auto day/night theme" is enabled
+ * @param dark     system night mode: true = dark, false = light, null = unknown
+ */
+internal fun resolveTheme(
+    selected: ThemeEntity?,
+    pool: List<ThemeEntity>,
+    auto: Boolean,
+    dark: Boolean?,
+): ThemeEntity {
+    if (selected == null) return defaultTheme()
+    if (!auto || dark == null) return selected
+    val wantLight = !dark
+    if (selected.isLight() == wantLight) return selected
+    // Selected preset doesn't match the mode — fall back to the first that does.
+    return pool.firstOrNull { it.isLight() == wantLight } ?: selected
+}
+
 data class GifItem(val id: String, val previewUrl: String, val fullUrl: String)
 
 /**
@@ -114,12 +148,24 @@ class OnyxKeyboardController(
     val clips = MutableStateFlow<List<ClipEntity>>(emptyList())
     val themes = MutableStateFlow<List<ThemeEntity>>(emptyList())
 
+    /** The user's selected preset as streamed from Room (before auto-day/night resolution). */
+    val userTheme = MutableStateFlow<ThemeEntity?>(null)
+
     val haptics = MutableStateFlow(true)
     val sound = MutableStateFlow(true)
     val particles = MutableStateFlow(true)
     val autocorrect = MutableStateFlow(true)
     val learning = MutableStateFlow(true)
     val gifNet = MutableStateFlow(false)
+
+    /** Auto day/night theme: swap between light/dark presets with the system. */
+    val autoTheme = MutableStateFlow(false)
+
+    /** System night mode as reported by the IME: true/false, null = unknown. */
+    val systemDark = MutableStateFlow<Boolean?>(null)
+
+    /** Battery-saver state — particle field pauses while it is active. */
+    val powerSave = MutableStateFlow(false)
 
     /** Show a dedicated 1..0 row above the letters (user preference). */
     val numberRow = MutableStateFlow(false)
@@ -142,6 +188,22 @@ class OnyxKeyboardController(
     private var lastSpaceAt = 0L
     private var clipboard: ClipboardManager? =
         context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+
+    // ------------------------------------------------------------- themes
+
+    /**
+     * Recomputes the effective [theme] from the user selection, the preset
+     * pool, the auto day/night switch and the system night mode. Called by
+     * the service whenever any of those inputs changes.
+     */
+    fun refreshTheme() {
+        theme.value = resolveTheme(
+            selected = userTheme.value,
+            pool = themes.value,
+            auto = autoTheme.value,
+            dark = systemDark.value,
+        ).toOnyxColors()
+    }
 
     // ------------------------------------------------------------- attach/detach
 

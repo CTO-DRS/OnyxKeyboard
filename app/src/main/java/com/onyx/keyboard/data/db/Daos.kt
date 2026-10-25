@@ -90,6 +90,9 @@ interface ThemeDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(themes: List<ThemeEntity>)
+
+    @Query("DELETE FROM themes WHERE id = :id")
+    suspend fun deleteById(id: Long)
 }
 
 @Dao
