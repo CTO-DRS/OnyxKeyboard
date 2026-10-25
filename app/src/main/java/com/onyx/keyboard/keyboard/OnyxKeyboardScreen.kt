@@ -7,9 +7,12 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -37,19 +40,31 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChanged
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.onyx.keyboard.intelligence.ArabicLexicon
+import com.onyx.keyboard.intelligence.EnglishLexicon
 import com.onyx.keyboard.ui.components.ParticleField
 import kotlin.math.abs
 
@@ -62,6 +77,7 @@ fun OnyxKeyboardScreen(controller: OnyxKeyboardController) {
     val theme by controller.theme.collectAsState()
     val page by controller.page.collectAsState()
     val altReq by controller.altPopup.collectAsState()
+    val glideCands by controller.glideCandidates.collectAsState()
 
     Box(
         Modifier
@@ -103,6 +119,10 @@ fun OnyxKeyboardScreen(controller: OnyxKeyboardController) {
                     onPick = { controller.onAltChar(it) },
                     onDismiss = { controller.closeAltPopup() }
                 )
+            } else if (glideCands.isNotEmpty()) {
+                // Post-glide word alternatives — first entry (the committed
+                // word) is highlighted; tapping another swaps it in place.
+                GlideStrip(candidates = glideCands, controller = controller)
             } else {
                 SmartToolbar(controller)
             }
@@ -118,6 +138,7 @@ fun OnyxKeyboardScreen(controller: OnyxKeyboardController) {
                 when (p) {
                     KeyboardPage.LETTERS -> LettersPage(controller)
                     KeyboardPage.SYMBOLS -> SymbolsPage(controller)
+                    KeyboardPage.NUMPAD -> NumpadPage(controller)
                     KeyboardPage.EMOJI -> EmojiPanel(controller)
                     KeyboardPage.CLIPBOARD -> ClipboardPanel(controller)
                     KeyboardPage.TRANSLATE -> TranslatePanel(controller)
@@ -132,6 +153,21 @@ fun OnyxKeyboardScreen(controller: OnyxKeyboardController) {
 
 // ------------------------------------------------------------------ pages
 
+/**
+ * Letters page — also hosts the GLIDE (swipe) TYPING gesture layer:
+ *
+ *  - Every letter key reports its window-space bounds via [KeyButton]’s
+ *    onGeometry into [keyBounds] (digits / shift / controls are excluded).
+ *  - A pointerInput on the page container tracks the first finger: until
+ *    touch-slop it does nothing (taps land on the key normally); beyond
+ *    slop it switches to glide mode, consumes subsequent moves (cancelling
+ *    the pressed key’s own tap), and records which letters the finger
+ *    crosses into a path string, drawing a translucent trail on top.
+ *  - On release the path is matched through [GlideMatcher] against the
+ *    current language lexicon; the best word is committed and the rest
+ *    appear in the candidate strip (GlideStrip).
+ */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun LettersPage(controller: OnyxKeyboardController) {
     val theme by controller.theme.collectAsState()
@@ -140,71 +176,161 @@ private fun LettersPage(controller: OnyxKeyboardController) {
     val showNumbers by controller.numberRow.collectAsState()
     val rows = KeyboardLayouts.letterRows(lang, shift)
 
-    Column(Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
-        if (showNumbers) {
-            Row(Modifier.fillMaxWidth()) {
-                KeyboardLayouts.numberRow.forEach { digit ->
-                    KeyButton(
-                        label = digit,
-                        accent = theme.accent,
-                        glow = theme.glow,
-                        keyFill = theme.keyFill.copy(alpha = 0.62f),
-                        keyText = theme.keyText.copy(alpha = 0.9f),
-                        onClick = { controller.onChar(digit) },
-                        height = 38.dp,
-                        fontSize = 15
-                    )
+    // Glide-typing plumbing (identity-stable across recompositions).
+    val keyBounds = remember { mutableMapOf<String, Rect>() }
+    val boxCoords = remember { mutableStateOf<LayoutCoordinates?>(null) }
+    val trace = remember { mutableStateListOf<Offset>() }
+
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .onGloballyPositioned { boxCoords.value = it }
+            .pointerInput(controller) {
+                val hitPad = 3.dp.toPx()
+                val slop = viewConfiguration.touchSlop
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    val bc = boxCoords.value ?: return@awaitEachGesture
+
+                    fun hitAt(boxLocal: Offset): String? {
+                        val wp = bc.localToWindow(boxLocal)
+                        return keyBounds.entries
+                            .firstOrNull { it.value.inflate(hitPad).contains(wp) }
+                            ?.key
+                    }
+
+                    // Only gestures STARTING on a registered letter key can glide.
+                    val start = hitAt(down.position) ?: return@awaitEachGesture
+                    val path = StringBuilder(start)
+                    var lastKey: String = start
+                    var last = down.position
+                    var total = 0f
+                    var gliding = false
+                    trace.clear()
+                    trace.add(down.position)
+
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        // A long-press alt popup hands the gesture over — stop tracking.
+                        if (controller.altPopup.value != null) break
+                        val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                        if (!change.pressed) {
+                            if (gliding) change.consume()
+                            break
+                        }
+                        val pos = change.position
+                        total += (pos - last).getDistance()
+                        last = pos
+                        if (!gliding) {
+                            if (total > slop) gliding = true else continue
+                        }
+                        if (change.positionChanged()) change.consume()
+                        val hit = hitAt(pos)
+                        if (hit != null && hit != lastKey) {
+                            path.append(hit)
+                            lastKey = hit
+                        }
+                        if (trace.size < 260) trace.add(pos)
+                    }
+
+                    if (gliding) {
+                        val word = path.toString()
+                        if (word.length >= 2) {
+                            val lexicon = if (lang == Lang.AR) ArabicLexicon.words
+                                          else EnglishLexicon.words
+                            val cands = GlideMatcher.candidates(word, lexicon)
+                            if (cands.isNotEmpty()) controller.onGlideWord(cands)
+                        }
+                    }
+                    trace.clear()
                 }
             }
-        }
-        rows.forEachIndexed { index, row ->
-            Row(Modifier.fillMaxWidth()) {
-                if (index == 2) {
-                    KeyIcon(
-                        icon = when (shift) {
-                            ShiftState.OFF -> Icons.Filled.ArrowUpward
-                            ShiftState.ON -> Icons.Filled.ArrowUpward
-                            ShiftState.CAPS -> Icons.Filled.Lock
-                        },
-                        contentDescription = "Shift",
-                        accent = if (shift != ShiftState.OFF) theme.accent else theme.accent.copy(alpha = 0.6f),
-                        glow = theme.glow,
-                        keyFill = if (shift != ShiftState.OFF) theme.accent.copy(alpha = 0.35f) else theme.keyFill,
-                        keyText = theme.keyText,
-                        onClick = { controller.toggleShift() },
-                        weight = 1.4f
-                    )
-                }
-                row.forEach { key ->
-                    // Long-press a letter to reveal accents / hamza variants.
-                    KeyButton(
-                        label = key,
-                        accent = theme.accent,
-                        glow = theme.glow,
-                        keyFill = theme.keyFill,
-                        keyText = theme.keyText,
-                        onClick = { controller.onChar(key) },
-                        onLongClick = { controller.openAltPopup(key) },
-                        height = 50.dp
-                    )
-                }
-                if (index == 2) {
-                    KeyIcon(
-                        icon = Icons.AutoMirrored.Filled.Backspace,
-                        contentDescription = "Backspace",
-                        accent = theme.accent,
-                        glow = theme.glow,
-                        keyFill = theme.keyFill,
-                        keyText = theme.keyText,
-                        onClick = { controller.onBackspace() },
-                        onLongClick = { controller.onBackspaceWord() },
-                        holdRepeat = { controller.onBackspace() },
-                        weight = 1.4f
-                    )
+    ) {
+        Column(Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
+            if (showNumbers) {
+                Row(Modifier.fillMaxWidth()) {
+                    KeyboardLayouts.numberRow.forEach { digit ->
+                        KeyButton(
+                            label = digit,
+                            accent = theme.accent,
+                            glow = theme.glow,
+                            keyFill = theme.keyFill.copy(alpha = 0.62f),
+                            keyText = theme.keyText.copy(alpha = 0.9f),
+                            onClick = { controller.onChar(digit) },
+                            height = 38.dp,
+                            fontSize = 15
+                        )
+                    }
                 }
             }
+            rows.forEachIndexed { index, row ->
+                Row(Modifier.fillMaxWidth()) {
+                    if (index == 2) {
+                        KeyIcon(
+                            icon = when (shift) {
+                                ShiftState.OFF -> Icons.Filled.ArrowUpward
+                                ShiftState.ON -> Icons.Filled.ArrowUpward
+                                ShiftState.CAPS -> Icons.Filled.Lock
+                            },
+                            contentDescription = "Shift",
+                            accent = if (shift != ShiftState.OFF) theme.accent else theme.accent.copy(alpha = 0.6f),
+                            glow = theme.glow,
+                            keyFill = if (shift != ShiftState.OFF) theme.accent.copy(alpha = 0.35f) else theme.keyFill,
+                            keyText = theme.keyText,
+                            onClick = { controller.toggleShift() },
+                            weight = 1.4f
+                        )
+                    }
+                    row.forEach { key ->
+                        // Long-press a letter to reveal accents / hamza variants.
+                        // onGeometry feeds the glide hit-test registry.
+                        KeyButton(
+                            label = key,
+                            accent = theme.accent,
+                            glow = theme.glow,
+                            keyFill = theme.keyFill,
+                            keyText = theme.keyText,
+                            onClick = { controller.onChar(key) },
+                            onLongClick = { controller.openAltPopup(key) },
+                            height = 50.dp,
+                            onGeometry = { keyBounds[key] = it }
+                        )
+                    }
+                    if (index == 2) {
+                        KeyIcon(
+                            icon = Icons.AutoMirrored.Filled.Backspace,
+                            contentDescription = "Backspace",
+                            accent = theme.accent,
+                            glow = theme.glow,
+                            keyFill = theme.keyFill,
+                            keyText = theme.keyText,
+                            onClick = { controller.onBackspace() },
+                            onLongClick = { controller.onBackspaceWord() },
+                            holdRepeat = { controller.onBackspace() },
+                            weight = 1.4f
+                        )
+                    }
+                }
+            }
+            BottomRow(controller)
         }
-        BottomRow(controller)
+
+        // Translucent finger trail while gliding (draw-phase only invalidation).
+        Canvas(Modifier.matchParentSize()) {
+            if (trace.size > 1) {
+                val w = 5.dp.toPx()
+                val p = Path().apply {
+                    moveTo(trace[0].x, trace[0].y)
+                    for (i in 1 until trace.size) lineTo(trace[i].x, trace[i].y)
+                }
+                drawPath(
+                    p,
+                    color = theme.accent.copy(alpha = 0.30f),
+                    style = Stroke(width = w, cap = StrokeCap.Round, join = StrokeJoin.Round)
+                )
+                drawCircle(theme.accent.copy(alpha = 0.45f), radius = w, center = trace.last())
+            }
+        }
     }
 }
 
@@ -254,7 +380,7 @@ private fun SymbolsPage(controller: OnyxKeyboardController) {
                 keyFill = theme.accent.copy(alpha = 0.25f),
                 keyText = theme.keyText,
                 onClick = { alt = !alt },
-                weight = 1.6f,
+                weight = 1.5f,
                 height = 50.dp,
                 fontSize = 14
             )
@@ -265,11 +391,23 @@ private fun SymbolsPage(controller: OnyxKeyboardController) {
                 keyFill = theme.keyFill,
                 keyText = theme.accent,
                 onClick = { controller.setPage(KeyboardPage.LETTERS) },
-                weight = 1.6f,
+                weight = 1.5f,
                 height = 50.dp,
                 fontSize = 14
             )
-            SpaceWithCursorSlide(controller, weight = 4.5f)
+            // Advanced numpad entry (calculator-style digits + math ops).
+            KeyButton(
+                label = "123+",
+                accent = theme.accent,
+                glow = theme.glow,
+                keyFill = theme.keyFill,
+                keyText = theme.accent,
+                onClick = { controller.setPage(KeyboardPage.NUMPAD) },
+                weight = 1.4f,
+                height = 50.dp,
+                fontSize = 13
+            )
+            SpaceWithCursorSlide(controller, weight = 3.4f)
             KeyIcon(
                 icon = Icons.AutoMirrored.Filled.KeyboardReturn,
                 contentDescription = "Enter",
@@ -297,6 +435,7 @@ private fun BottomRow(controller: OnyxKeyboardController) {
             keyFill = theme.keyFill,
             keyText = theme.accent,
             onClick = { controller.setPage(KeyboardPage.SYMBOLS) },
+            onLongClick = { controller.setPage(KeyboardPage.NUMPAD) },
             weight = 1.4f,
             height = 50.dp
         )
@@ -457,6 +596,170 @@ private fun RowScope.SpaceWithCursorSlide(
                 keyText = theme.keyText.copy(alpha = 0.75f),
                 onClick = { controller.onSpace() },
                 onLongClick = onLongClick,
+                weight = 1f,
+                height = 50.dp
+            )
+        }
+    }
+}
+
+/**
+ * Post-glide candidate strip, rendered in place of the toolbar (same 46dp
+ * height so the keyboard never resizes). The first chip is the word that
+ * was already committed by the swipe — tapping any other chip transparently
+ * replaces it; any regular key press hides the strip.
+ */
+@Composable
+private fun GlideStrip(
+    candidates: List<String>,
+    controller: OnyxKeyboardController,
+) {
+    val theme by controller.theme.collectAsState()
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(46.dp)
+            .padding(horizontal = 6.dp, vertical = 4.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(theme.keyFill.copy(alpha = 0.55f)),
+        horizontalArrangement = Arrangement.spacedBy(3.dp)
+    ) {
+        candidates.forEachIndexed { i, word ->
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(if (i == 0) theme.accent.copy(alpha = 0.45f) else Color.Transparent)
+                    .clickable { controller.pickGlideCandidate(word) },
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = word,
+                    color = if (i == 0) Color.White else theme.keyText,
+                    fontSize = 19.sp,
+                    fontWeight = if (i == 0) FontWeight.Bold else FontWeight.Medium,
+                    maxLines = 1
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Advanced numpad — calculator-style layout with a slim function row
+ * (clear/√/x²/π/%/parens), a digit grid with math operators, long-press
+ * currency & symbol alternates, a wide zero, decimal point, space and a
+ * smart enter. Exits via the ABC key.
+ */
+@Composable
+private fun NumpadPage(controller: OnyxKeyboardController) {
+    val theme by controller.theme.collectAsState()
+
+    Column(Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
+        // Slim function row.
+        Row(Modifier.fillMaxWidth()) {
+            KeyboardLayouts.numpadSlim.forEach { key ->
+                if (key == "ABC") {
+                    KeyButton(
+                        label = key,
+                        accent = theme.accent,
+                        glow = theme.glow,
+                        keyFill = theme.accent.copy(alpha = 0.25f),
+                        keyText = theme.keyText,
+                        onClick = { controller.setPage(KeyboardPage.LETTERS) },
+                        height = 34.dp,
+                        fontSize = 12,
+                        fontWeight = FontWeight.Bold
+                    )
+                } else {
+                    KeyButton(
+                        label = key,
+                        accent = theme.accent,
+                        glow = theme.glow,
+                        keyFill = theme.keyFill,
+                        keyText = theme.keyText,
+                        onClick = { controller.commitText(KeyboardLayouts.numpadCommit(key)) },
+                        onLongClick = { controller.openAltPopup(key, numpad = true) },
+                        height = 34.dp,
+                        fontSize = 14
+                    )
+                }
+            }
+        }
+
+        // Digit / operator grid (row 0 carries the backspace).
+        KeyboardLayouts.numpadRows.forEachIndexed { index, row ->
+            Row(Modifier.fillMaxWidth()) {
+                row.forEach { key ->
+                    KeyButton(
+                        label = key,
+                        accent = theme.accent,
+                        glow = theme.glow,
+                        keyFill = theme.keyFill,
+                        keyText = theme.keyText,
+                        onClick = { controller.commitText(KeyboardLayouts.numpadCommit(key)) },
+                        onLongClick = { controller.openAltPopup(key, numpad = true) },
+                        height = 50.dp,
+                        fontSize = 20,
+                        fontWeight = FontWeight.Normal
+                    )
+                }
+                if (index == 0) {
+                    KeyIcon(
+                        icon = Icons.AutoMirrored.Filled.Backspace,
+                        contentDescription = "Backspace",
+                        accent = theme.accent,
+                        glow = theme.glow,
+                        keyFill = theme.keyFill,
+                        keyText = theme.keyText,
+                        onClick = { controller.onBackspace() },
+                        onLongClick = { controller.onBackspaceWord() },
+                        holdRepeat = { controller.onBackspace() },
+                        weight = 1f,
+                        height = 50.dp
+                    )
+                }
+            }
+        }
+
+        // Utility row: wide 0, decimal point, space (with cursor slide), enter.
+        Row(Modifier.fillMaxWidth()) {
+            KeyButton(
+                label = "0",
+                accent = theme.accent,
+                glow = theme.glow,
+                keyFill = theme.keyFill,
+                keyText = theme.keyText,
+                onClick = { controller.commitText("0") },
+                onLongClick = { controller.openAltPopup("0", numpad = true) },
+                weight = 2f,
+                height = 50.dp,
+                fontSize = 20,
+                fontWeight = FontWeight.Normal
+            )
+            KeyButton(
+                label = ".",
+                accent = theme.accent,
+                glow = theme.glow,
+                keyFill = theme.keyFill,
+                keyText = theme.keyText,
+                onClick = { controller.commitText(".") },
+                onLongClick = { controller.openAltPopup(".", numpad = true) },
+                weight = 1f,
+                height = 50.dp,
+                fontSize = 20
+            )
+            SpaceWithCursorSlide(controller, weight = 1f)
+            KeyIcon(
+                icon = Icons.AutoMirrored.Filled.KeyboardReturn,
+                contentDescription = "Enter",
+                accent = theme.accent,
+                glow = theme.glow,
+                keyFill = theme.accent.copy(alpha = 0.28f),
+                keyText = theme.keyText,
+                onClick = { controller.commitEnter() },
                 weight = 1f,
                 height = 50.dp
             )

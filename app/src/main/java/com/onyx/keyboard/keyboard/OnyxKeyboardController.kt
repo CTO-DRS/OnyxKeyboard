@@ -23,7 +23,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-enum class KeyboardPage { LETTERS, SYMBOLS, EMOJI, CLIPBOARD, TRANSLATE, GIF, SETTINGS, VOICE }
+enum class KeyboardPage { LETTERS, SYMBOLS, NUMPAD, EMOJI, CLIPBOARD, TRANSLATE, GIF, SETTINGS, VOICE }
 enum class Lang(val code: String) { AR("ar"), EN("en") }
 enum class ShiftState { OFF, ON, CAPS }
 
@@ -176,6 +176,16 @@ class OnyxKeyboardController(
     /** Active long-press alternatives popup (null = hidden). */
     val altPopup = MutableStateFlow<AltRequest?>(null)
 
+    /**
+     * Glide-typing candidate strip. After a swipe gesture the best word is
+     * committed immediately and the remaining alternatives are shown here so
+     * the user can swap the committed word with one tap. Empty = hidden.
+     */
+    val glideCandidates = MutableStateFlow<List<String>>(emptyList())
+
+    /** The word currently committed by a glide (used to replace it on pick). */
+    private var glideCommitted: String? = null
+
     val voiceActive = MutableStateFlow(false)
     val voiceText = MutableStateFlow("")
     val voiceError = MutableStateFlow<String?>(null)
@@ -213,6 +223,7 @@ class OnyxKeyboardController(
         suggestions.value = emptyList()
         lastCommitWasSpace = false
         altPopup.value = null
+        clearGlide()
     }
 
     /** Read-only access for the service's rich-content (GIF) pipeline. */
@@ -231,6 +242,7 @@ class OnyxKeyboardController(
         autoCapNext.value = false
         lastCommitWasSpace = false
         altPopup.value = null
+        clearGlide()
         enterActionId = if (numeric) 0 else editorActionId
         page.value = if (numeric) KeyboardPage.SYMBOLS else KeyboardPage.LETTERS
     }
@@ -266,6 +278,7 @@ class OnyxKeyboardController(
 
     fun onChar(raw: String) {
         haptic(); clickSound()
+        clearGlide()
         val c = applyCase(raw)
         buffer.value += c
         ic?.setComposingText(buffer.value, 1)
@@ -296,9 +309,12 @@ class OnyxKeyboardController(
 
     // ------------------------------------------------------------- alt popup
 
-    /** Opens the alternatives strip for a held letter key (if it has any). */
-    fun openAltPopup(key: String) {
-        val options = AltChars.alternativesFor(lang.value, key) ?: return
+    /** Opens the alternatives strip for a held letter key (if it has any).
+     *  [numpad] switches the lookup to the advanced numpad alternate table. */
+    fun openAltPopup(key: String, numpad: Boolean = false) {
+        val options = if (numpad) AltChars.numpad[key]
+                      else AltChars.alternativesFor(lang.value, key)
+        options ?: return
         haptic()
         altPopup.value = AltRequest(key, options)
     }
@@ -329,6 +345,7 @@ class OnyxKeyboardController(
 
     fun onSpace() {
         haptic(); clickSound()
+        clearGlide()
         val now = System.currentTimeMillis()
         val b = buffer.value
 
@@ -373,6 +390,7 @@ class OnyxKeyboardController(
 
     fun onBackspace() {
         haptic(); clickSound()
+        clearGlide()
         lastCommitWasSpace = false
         val b = buffer.value
         if (b.isNotEmpty()) {
@@ -419,6 +437,7 @@ class OnyxKeyboardController(
 
     fun commitText(text: String) {
         haptic(); clickSound()
+        clearGlide()
         lastCommitWasSpace = false
         ic?.commitText(text, 1)
         // Sentence terminator -> auto-capitalize the next English letter.
@@ -434,6 +453,7 @@ class OnyxKeyboardController(
      */
     fun commitEnter() {
         haptic(); clickSound()
+        clearGlide()
         buffer.value = ""
         suggestions.value = emptyList()
         lastCommitWasSpace = false
@@ -448,6 +468,7 @@ class OnyxKeyboardController(
 
     fun insertEmoji(e: String) {
         haptic()
+        clearGlide()
         buffer.value = ""
         suggestions.value = emptyList()
         lastCommitWasSpace = false
@@ -537,6 +558,7 @@ class OnyxKeyboardController(
 
     fun switchLanguage() {
         haptic()
+        clearGlide()
         if (buffer.value.isNotEmpty()) ic?.finishComposingText()
         buffer.value = ""
         suggestions.value = emptyList()
@@ -545,10 +567,68 @@ class OnyxKeyboardController(
 
     fun setPage(p: KeyboardPage) {
         haptic()
+        clearGlide()
         if (p != page.value && page.value != KeyboardPage.LETTERS && p == KeyboardPage.LETTERS) {
             // returning to letters keeps buffer as-is
         }
         page.value = p
+    }
+
+    // ------------------------------------------------------------- glide typing
+
+    /**
+     * Commits the best word of a finished swipe gesture and offers the
+     * remaining candidates in the strip. The first candidate is committed
+     * immediately (standard gesture-typing behaviour); picking another one
+     * transparently replaces it.
+     */
+    fun onGlideWord(candidates: List<String>) {
+        val best = candidates.firstOrNull() ?: return
+        haptic()
+        clearGlide()
+        // Honor EN shift / auto-capitalize on the committed word.
+        val out = if (lang.value == Lang.EN &&
+            (shift.value != ShiftState.OFF || autoCapNext.value)
+        ) {
+            best.replaceFirstChar { it.uppercase() }
+        } else {
+            best
+        }
+        buffer.value = ""
+        suggestions.value = emptyList()
+        lastCommitWasSpace = false
+        ic?.finishComposingText()
+        ic?.commitText(out, 1)
+        glideCommitted = out
+        glideCandidates.value = candidates
+        if (lang.value == Lang.EN) {
+            if (shift.value == ShiftState.ON) shift.value = ShiftState.OFF
+            autoCapNext.value = false
+        }
+        scope.launch {
+            runCatching {
+                val pid = profile.value?.id
+                if (pid != null && learning.value) repo.recordWord(pid, best, lang.value.code)
+                repo.bumpWords()
+            }
+        }
+    }
+
+    /** Swaps the just-glide-typed word with one of the offered alternatives. */
+    fun pickGlideCandidate(word: String) {
+        haptic()
+        val prev = glideCommitted
+        if (prev != null) ic?.deleteSurroundingText(prev.length, 0)
+        ic?.commitText(word, 1)
+        glideCommitted = word
+        glideCandidates.value = emptyList()
+        lastCommitWasSpace = false
+    }
+
+    /** Hides the glide strip; called by every plain key action and reset. */
+    fun clearGlide() {
+        glideCandidates.value = emptyList()
+        glideCommitted = null
     }
 
     // ------------------------------------------------------------- clipboard

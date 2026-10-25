@@ -26,10 +26,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -40,6 +43,11 @@ import kotlinx.coroutines.delay
  * A single neon-glass key. Pressed state triggers: scale-down, glow bloom,
  * gradient border intensification — plus the controller's haptic/sound path.
  * Optional [onLongClick] powers long-press alternative characters.
+ *
+ * [onGeometry] reports the key's unscaled bounds (window space) on every
+ * layout pass — the glide-typing gesture layer uses it to hit-test which
+ * letter the finger is currently over. It is placed BEFORE the scale
+ * modifier so the press animation never skews the reported geometry.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -56,6 +64,7 @@ fun RowScope.KeyButton(
     fontSize: Int = 18,
     fontWeight: FontWeight = FontWeight.Medium,
     onLongClick: (() -> Unit)? = null,
+    onGeometry: ((Rect) -> Unit)? = null,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
@@ -67,6 +76,7 @@ fun RowScope.KeyButton(
             .weight(weight)
             .padding(horizontal = 2.5.dp, vertical = 3.dp)
             .height(height)
+            .onGloballyPositioned { coords -> onGeometry?.invoke(coords.boundsInWindow()) }
             .drawBehind {
                 // Outer neon bloom, stronger while pressed.
                 val a = glowAlpha * (if (pressed) 0.55f else 0.18f)

@@ -43,6 +43,37 @@ object KeyboardLayouts {
     /** Optional digits row shown above the letters when the user enables it. */
     val numberRow: List<String> = listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "0")
 
+    // ------------------------------------------------------- advanced numpad
+
+    /**
+     * Slim function row of the advanced numpad (rendered at reduced height).
+     * "ABC" is the exit key back to the letters page; the rest commit
+     * directly through [numpadCommit].
+     */
+    val numpadSlim: List<String> = listOf("ABC", "√", "x²", "π", "%", "(", ")")
+
+    /**
+     * Main digit/operator grid. Each row is rendered with fixed extras:
+     * row 0 gets a backspace icon appended, row 1 and 2 are plain, and the
+     * final utility row (0 / . / space / enter) is composed by the UI.
+     */
+    val numpadRows: List<List<String>> = listOf(
+        listOf("7", "8", "9", "÷"),
+        listOf("4", "5", "6", "×", "+"),
+        listOf("1", "2", "3", "−", "="),
+    )
+
+    /**
+     * Maps an on-screen numpad label to the text it actually commits.
+     * Mostly identity — "x²" commits the superscript and "−" falls back to
+     * the ASCII hyphen-minus that text fields universally accept.
+     */
+    fun numpadCommit(label: String): String = when (label) {
+        "x²" -> "²"
+        "−" -> "-"
+        else -> label
+    }
+
     fun letterRows(lang: Lang, shift: ShiftState): List<List<String>> = when (lang) {
         Lang.AR -> if (shift == ShiftState.OFF) arabicRows else arabicAltRows
         Lang.EN -> if (shift == ShiftState.OFF) englishRows else {

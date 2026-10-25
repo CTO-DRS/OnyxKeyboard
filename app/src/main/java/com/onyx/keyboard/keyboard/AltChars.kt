@@ -43,6 +43,23 @@ object AltChars {
     )
 
     /**
+     * Advanced numpad key -> alternatives (long-press): currency, brackets,
+     * math variants. Keys are addressed by their ON-SCREEN label.
+     */
+    val numpad: Map<String, List<String>> = mapOf(
+        "0" to listOf("$", "€", "¥", "£"),
+        "." to listOf("،", ","),
+        "=" to listOf("≈", "≠"),
+        "%" to listOf("‰", "°"),
+        "(" to listOf("[", "{", "<"),
+        ")" to listOf("]", "}", ">"),
+        "√" to listOf("∛"),
+        "x²" to listOf("³"),
+        "+" to listOf("±"),
+        "÷" to listOf(":"),
+    )
+
+    /**
      * Arabic diacritics (tashkeel) offered by long-pressing the space key:
      * fatha, damma, kasra, shadda, sukun, fathatan, dammatan, kasratan.
      */
