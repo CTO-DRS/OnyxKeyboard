@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -33,6 +34,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
 
 /**
  * A single neon-glass key. Pressed state triggers: scale-down, glow bloom,
@@ -119,11 +121,26 @@ fun RowScope.KeyIcon(
     height: Dp = 52.dp,
     iconSize: Dp = 20.dp,
     onLongClick: (() -> Unit)? = null,
+    /**
+     * If set, this action auto-repeats while the key is held down
+     * (after an initial delay so a normal tap fires exactly once).
+     */
+    holdRepeat: (() -> Unit)? = null,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val scale by animateFloatAsState(if (pressed) 0.93f else 1f, label = "iconScale")
     val glowAlpha by animateFloatAsState(if (pressed) 1f else 0.35f, label = "iconGlow")
+
+    LaunchedEffect(pressed) {
+        val repeat = holdRepeat ?: return@LaunchedEffect
+        if (!pressed) return@LaunchedEffect
+        delay(450) // longer than the long-press timeout to not double-fire word actions
+        while (true) {
+            repeat()
+            delay(45)
+        }
+    }
 
     Box(
         modifier

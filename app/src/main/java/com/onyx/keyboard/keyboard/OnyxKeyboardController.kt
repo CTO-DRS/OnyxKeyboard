@@ -7,6 +7,7 @@ import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import android.view.inputmethod.ExtractedTextRequest
 import android.view.inputmethod.InputConnection
 import androidx.compose.ui.graphics.Color
 import com.onyx.keyboard.data.db.ClipEntity
@@ -25,6 +26,8 @@ import kotlinx.coroutines.withContext
 enum class KeyboardPage { LETTERS, SYMBOLS, EMOJI, CLIPBOARD, TRANSLATE, GIF, SETTINGS, VOICE }
 enum class Lang(val code: String) { AR("ar"), EN("en") }
 enum class ShiftState { OFF, ON, CAPS }
+
+internal val SENTENCE_TERMINATORS = ".!?".toSet()
 
 data class GifItem(val id: String, val previewUrl: String, val fullUrl: String)
 
@@ -90,6 +93,15 @@ class OnyxKeyboardController(
     val shift = MutableStateFlow(ShiftState.OFF)
     val buffer = MutableStateFlow("")
     val suggestions = MutableStateFlow<List<Suggestion>>(emptyList())
+
+    /** Auto-capitalization: the next letter should be uppercase (EN only). */
+    val autoCapNext = MutableStateFlow(false)
+
+    /**
+     * Editor action of the focused field (send / search / done…).
+     * 0 means "plain multi-line input — Enter inserts a newline".
+     */
+    private var enterActionId: Int = 0
     val theme = MutableStateFlow(defaultColors())
     val profile = MutableStateFlow<ProfileEntity?>(null)
     val profiles = MutableStateFlow<List<ProfileEntity>>(emptyList())
@@ -127,10 +139,14 @@ class OnyxKeyboardController(
         ic = null
     }
 
-    fun resetForNewField(numeric: Boolean) {
+    fun resetForNewField(numeric: Boolean) = resetForNewField(numeric, 0)
+
+    fun resetForNewField(numeric: Boolean, editorActionId: Int) {
         buffer.value = ""
         suggestions.value = emptyList()
         shift.value = ShiftState.OFF
+        autoCapNext.value = false
+        enterActionId = if (numeric) 0 else editorActionId
         page.value = if (numeric) KeyboardPage.SYMBOLS else KeyboardPage.LETTERS
     }
 
@@ -168,6 +184,7 @@ class OnyxKeyboardController(
         val c = applyCase(raw)
         buffer.value += c
         ic?.setComposingText(buffer.value, 1)
+        autoCapNext.value = false
         // Auto-unshift: one uppercase letter, then back to lowercase (EN only).
         if (lang.value == Lang.EN && shift.value == ShiftState.ON) shift.value = ShiftState.OFF
         scope.launch { runCatching { repo.bumpKeystrokes() } }
@@ -175,7 +192,9 @@ class OnyxKeyboardController(
     }
 
     private fun applyCase(c: String): String =
-        if (lang.value == Lang.EN && shift.value != ShiftState.OFF && c.length == 1) {
+        if (lang.value == Lang.EN && c.length == 1 &&
+            (shift.value != ShiftState.OFF || autoCapNext.value)
+        ) {
             c.uppercase()
         } else {
             c
@@ -254,6 +273,27 @@ class OnyxKeyboardController(
     fun commitText(text: String) {
         haptic(); clickSound()
         ic?.commitText(text, 1)
+        // Sentence terminator -> auto-capitalize the next English letter.
+        if (lang.value == Lang.EN && text.length == 1 && text[0] in SENTENCE_TERMINATORS) {
+            autoCapNext.value = true
+        }
+        scope.launch { runCatching { repo.bumpKeystrokes() } }
+    }
+
+    /**
+     * Enter key: honours the field's editor action (send / search / done…)
+     * instead of always inserting a newline. Newlines also arm EN auto-cap.
+     */
+    fun commitEnter() {
+        haptic(); clickSound()
+        buffer.value = ""
+        suggestions.value = emptyList()
+        if (enterActionId != 0) {
+            ic?.performEditorAction(enterActionId)
+        } else {
+            ic?.commitText("\n", 1)
+            if (lang.value == Lang.EN) autoCapNext.value = true
+        }
         scope.launch { runCatching { repo.bumpKeystrokes() } }
     }
 
@@ -288,6 +328,35 @@ class OnyxKeyboardController(
             // Only apply if the buffer hasn't moved on.
             if (buffer.value == prefix) suggestions.value = list
         }
+    }
+
+    // ------------------------------------------------------------- cursor
+
+    /**
+     * Moves the cursor by [delta] characters (negative = left). Uses the
+     * extracted-text cursor when the field provides it, otherwise walks from
+     * the text before the cursor. Selections collapse to their leading edge.
+     */
+    fun moveCursor(delta: Int) {
+        haptic()
+        val conn = ic ?: return
+        val cur = currentCursorPosition(conn, delta)
+        val target = (cur + delta).coerceAtLeast(0)
+        runCatching { conn.setSelection(target, target) }
+    }
+
+    private fun currentCursorPosition(conn: InputConnection, delta: Int): Int {
+        runCatching {
+            val et = conn.getExtractedText(ExtractedTextRequest(), 0)
+            if (et != null) {
+                val pos = if (delta < 0) et.selectionStart else et.selectionEnd
+                if (pos >= 0) return pos
+            }
+        }
+        val before = runCatching {
+            conn.getTextBeforeCursor(1000, 0)?.toString().orEmpty()
+        }.getOrDefault("")
+        return before.length
     }
 
     // ------------------------------------------------------------- mode keys

@@ -18,6 +18,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Backspace
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.KeyboardReturn
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Lock
@@ -35,11 +37,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.onyx.keyboard.R
 import com.onyx.keyboard.ui.components.ParticleField
 
 /**
@@ -152,6 +152,7 @@ private fun LettersPage(controller: OnyxKeyboardController) {
                         keyText = theme.keyText,
                         onClick = { controller.onBackspace() },
                         onLongClick = { controller.onBackspaceWord() },
+                        holdRepeat = { controller.onBackspace() },
                         weight = 1.4f
                     )
                 }
@@ -192,6 +193,7 @@ private fun SymbolsPage(controller: OnyxKeyboardController) {
                         keyText = theme.keyText,
                         onClick = { controller.onBackspace() },
                         onLongClick = { controller.onBackspaceWord() },
+                        holdRepeat = { controller.onBackspace() },
                         weight = 1.4f,
                         height = 50.dp
                     )
@@ -239,7 +241,7 @@ private fun SymbolsPage(controller: OnyxKeyboardController) {
                 glow = theme.glow,
                 keyFill = theme.accent.copy(alpha = 0.28f),
                 keyText = theme.keyText,
-                onClick = { controller.commitText("\n") },
+                onClick = { controller.commitEnter() },
                 weight = 1.7f,
                 height = 50.dp
             )
@@ -262,19 +264,38 @@ private fun BottomRow(controller: OnyxKeyboardController) {
             weight = 1.4f,
             height = 50.dp
         )
-        KeyButton(
-            label = if (controller.lang.collectAsState().value == Lang.AR)
-                stringResource(R.string.kb_lang_en)
-            else stringResource(R.string.kb_lang_ar),
-            accent = theme.accent,
-            glow = theme.glow,
-            keyFill = theme.accent.copy(alpha = 0.22f),
-            keyText = theme.keyText,
-            onClick = { controller.switchLanguage() },
-            weight = 1.5f,
-            height = 50.dp,
-            fontSize = 13
-        )
+        // Cursor cluster — replaces the old bottom language key (the toolbar
+        // language chip still switches AR/EN). Hold to keep scrolling.
+        Box(modifier = Modifier.weight(1.5f)) {
+            Row(modifier = Modifier.fillMaxSize()) {
+                KeyIcon(
+                    icon = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                    contentDescription = "Cursor left",
+                    accent = theme.accent,
+                    glow = theme.glow,
+                    keyFill = theme.keyFill,
+                    keyText = theme.keyText,
+                    onClick = { controller.moveCursor(-1) },
+                    weight = 1f,
+                    height = 50.dp,
+                    iconSize = 22.dp,
+                    holdRepeat = { controller.moveCursor(-1) }
+                )
+                KeyIcon(
+                    icon = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = "Cursor right",
+                    accent = theme.accent,
+                    glow = theme.glow,
+                    keyFill = theme.keyFill,
+                    keyText = theme.keyText,
+                    onClick = { controller.moveCursor(1) },
+                    weight = 1f,
+                    height = 50.dp,
+                    iconSize = 22.dp,
+                    holdRepeat = { controller.moveCursor(1) }
+                )
+            }
+        }
         KeyIcon(
             icon = Icons.Filled.SpaceBar,
             contentDescription = "Space",
@@ -293,7 +314,7 @@ private fun BottomRow(controller: OnyxKeyboardController) {
             glow = theme.glow,
             keyFill = theme.accent.copy(alpha = 0.28f),
             keyText = theme.keyText,
-            onClick = { controller.commitText("\n") },
+            onClick = { controller.commitEnter() },
             weight = 1.7f,
             height = 50.dp
         )

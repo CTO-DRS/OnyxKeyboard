@@ -175,7 +175,13 @@ class OnyxIME : InputMethodService() {
         val numeric = cls == InputType.TYPE_CLASS_NUMBER ||
             cls == InputType.TYPE_CLASS_PHONE ||
             cls == InputType.TYPE_CLASS_DATETIME
-        controller.resetForNewField(numeric)
+        // Honour the field's editor action (send / search / done…) so the
+        // Enter key performs what the app expects instead of adding a newline.
+        val imeOptions = editorInfo?.imeOptions ?: 0
+        val noEnterAction = imeOptions and EditorInfo.IME_FLAG_NO_ENTER_ACTION != 0
+        val action = editorInfo?.actionId ?: EditorInfo.IME_ACTION_NONE
+        val editorAction = if (noEnterAction || action == EditorInfo.IME_ACTION_NONE) 0 else action
+        controller.resetForNewField(numeric, editorAction)
     }
 
     override fun onFinishInput() {
