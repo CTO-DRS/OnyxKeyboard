@@ -73,6 +73,29 @@ data class DailyStatsEntity(
     val gifs: Long = 0,
 )
 
+/**
+ * Learned word PAIRS (bigrams) — the memory behind next-word prediction.
+ * When the user commits "hello" followed by "world", the pair
+ * (prev="hello", next="world") is bumped; the next time "hello" is the
+ * context, "world" surfaces as a prediction. Fully on-device, per profile.
+ */
+@Entity(
+    tableName = "bigrams",
+    indices = [
+        Index("profileId"),
+        Index(value = ["profileId", "prev", "next"], unique = true)
+    ]
+)
+data class BigramEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val profileId: Long,
+    val prev: String,
+    val next: String,
+    val lang: String = "ar",          // "ar" | "en"
+    val freq: Int = 1,
+    val lastUsed: Long = System.currentTimeMillis(),
+)
+
 /** Simple key/value settings store persisted in Room. */
 @Entity(tableName = "settings")
 data class SettingsEntity(

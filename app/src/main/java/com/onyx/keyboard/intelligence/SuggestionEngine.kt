@@ -59,4 +59,42 @@ class SuggestionEngine(private val repo: OnyxRepository) {
 
         results.take(maxSuggestions)
     }
+
+    /**
+     * NEXT-WORD prediction — the second half of the full suggestion system.
+     *
+     * Called whenever the composing buffer is empty and a context word is
+     * known (the word the user just committed). Ranking:
+     *
+     *  1. Learned bigrams for THIS profile — pairs the user has actually
+     *     typed before, frequency-ordered (personal, most relevant).
+     *  2. Sentence-starter words for the current language — used when the
+     *     sentence is fresh (after a terminator / newline) or no bigram
+     *     exists yet for the context word.
+     *
+     * Pure on-device computation; no network anywhere on this path.
+     */
+    suspend fun predictNext(
+        prevWord: String?,
+        lang: String,
+        profileId: Long,
+        maxSuggestions: Int = 3,
+    ): List<Suggestion> = withContext(Dispatchers.Default) {
+        val prev = prevWord?.trim()?.lowercase().orEmpty()
+
+        // 1) Personal bigram memory first.
+        if (prev.isNotEmpty()) {
+            val learned = repo.nextWords(profileId, prev, maxSuggestions + 3)
+                .filter { it.isNotBlank() && it != prev }
+            if (learned.isNotEmpty()) {
+                return@withContext learned.take(maxSuggestions).map { Suggestion(it) }
+            }
+        }
+
+        // 2) Fresh sentence (or unknown context) — language starters.
+        val starters = if (lang == "ar") ArabicLexicon.starters else EnglishLexicon.starters
+        starters.filter { it != prev }
+            .take(maxSuggestions)
+            .map { Suggestion(it) }
+    }
 }

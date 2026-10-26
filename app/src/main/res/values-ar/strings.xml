@@ -105,6 +105,8 @@
     <string name="settings_particles">تأثيرات الجسيمات</string>
     <string name="settings_auto_theme">ثيم تلقائي (يتبع وضع النظام نهاراً/ليلاً)</string>
     <string name="settings_autocorrect">تصحيح عربي تلقائي</string>
+    <string name="settings_predictions">اقتراح الكلمة التالية</string>
+    <string name="suggestions_dismiss">إخفاء الاقتراحات</string>
     <string name="settings_learning">التعلم المحلي من أسلوبك</string>
     <string name="settings_gifnet">لوحة GIF من الشبكة</string>
     <string name="settings_number_row">صف الأرقام</string>

@@ -14,8 +14,11 @@ import androidx.room.RoomDatabase
         ClipEntity::class,
         DailyStatsEntity::class,
         SettingsEntity::class,
+        BigramEntity::class,
     ],
-    version = 1,
+    // v2: added the "bigrams" table (learned word pairs for next-word
+    // prediction). fallbackToDestructiveMigration handles the upgrade.
+    version = 2,
     exportSchema = false
 )
 abstract class OnyxDatabase : RoomDatabase() {
@@ -27,6 +30,7 @@ abstract class OnyxDatabase : RoomDatabase() {
     abstract fun clipDao(): ClipDao
     abstract fun statsDao(): StatsDao
     abstract fun settingsDao(): SettingsDao
+    abstract fun bigramDao(): BigramDao
 
     companion object {
         @Volatile

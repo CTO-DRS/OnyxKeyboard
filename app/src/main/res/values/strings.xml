@@ -107,6 +107,8 @@
     <string name="settings_particles">Particle effects</string>
     <string name="settings_auto_theme">Auto day/night theme (follow system)</string>
     <string name="settings_autocorrect">Arabic auto-correct</string>
+    <string name="settings_predictions">Next-word suggestions</string>
+    <string name="suggestions_dismiss">Dismiss suggestions</string>
     <string name="settings_learning">Local style learning</string>
     <string name="settings_gifnet">Network GIF panel</string>
     <string name="settings_number_row">Number row</string>

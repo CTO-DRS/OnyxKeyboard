@@ -138,6 +138,13 @@ class OnyxIME : InputMethodService() {
                 .collectLatest { controller.learning.value = it == "true" }
         }
         scope.launch {
+            repo.observeSetting(OnyxRepository.KEY_PREDICTIONS, "true")
+                .collectLatest {
+                    controller.predictions.value = it == "true"
+                    if (it != "true") controller.dismissSuggestions()
+                }
+        }
+        scope.launch {
             repo.observeSetting(OnyxRepository.KEY_GIF_NET, "false")
                 .collectLatest { controller.gifNet.value = it == "true" }
         }

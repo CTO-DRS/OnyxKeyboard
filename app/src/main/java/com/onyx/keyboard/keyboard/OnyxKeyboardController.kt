@@ -170,6 +170,9 @@ class OnyxKeyboardController(
     /** Show a dedicated 1..0 row above the letters (user preference). */
     val numberRow = MutableStateFlow(false)
 
+    /** Next-word prediction (bigram-driven) — user preference. */
+    val predictions = MutableStateFlow(true)
+
     /** Most-recently used emojis (parsed from the settings table). */
     val recentEmojis = MutableStateFlow<List<String>>(emptyList())
 
@@ -196,6 +199,17 @@ class OnyxKeyboardController(
     // Double-space -> period tracking (set only by a committed space).
     private var lastCommitWasSpace = false
     private var lastSpaceAt = 0L
+
+    /**
+     * Sentence context for NEXT-WORD prediction:
+     *  - [lastWord]     the last committed word (lowercase, harakat-stripped
+     *                   via the same path as learning) — the bigram "prev".
+     *  - [sentenceStart] true right after a terminator/newline, so the strip
+     *                   offers language starter words instead of bigrams.
+     */
+    internal var lastWord: String? = null
+    internal var sentenceStart = false
+
     private var clipboard: ClipboardManager? =
         context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
 
@@ -224,6 +238,7 @@ class OnyxKeyboardController(
         lastCommitWasSpace = false
         altPopup.value = null
         clearGlide()
+        resetSentenceContext()
     }
 
     /** Read-only access for the service's rich-content (GIF) pipeline. */
@@ -243,8 +258,15 @@ class OnyxKeyboardController(
         lastCommitWasSpace = false
         altPopup.value = null
         clearGlide()
+        resetSentenceContext()
         enterActionId = if (numeric) 0 else editorActionId
         page.value = if (numeric) KeyboardPage.SYMBOLS else KeyboardPage.LETTERS
+    }
+
+    /** Fresh field / fresh session: no bigram context, not a sentence start. */
+    private fun resetSentenceContext() {
+        lastWord = null
+        sentenceStart = false
     }
 
     // ------------------------------------------------------------- feedback
@@ -357,7 +379,14 @@ class OnyxKeyboardController(
             lastSpaceAt = 0
             ic?.deleteSurroundingText(1, 0)
             ic?.commitText(". ", 1)
-            scope.launch { runCatching { repo.bumpKeystrokes() } }
+            // A period closes the sentence — the bigram context dies and the
+            // next predictions come from language starters instead.
+            lastWord = null
+            sentenceStart = true
+            scope.launch {
+                runCatching { repo.bumpKeystrokes() }
+                updatePredictions()
+            }
             return
         }
 
@@ -368,9 +397,13 @@ class OnyxKeyboardController(
         suggestions.value = emptyList()
         lastCommitWasSpace = true
         lastSpaceAt = now
+        // ONE coroutine so the ordering is guaranteed: commitWord writes
+        // [lastWord] before updatePredictions reads it (Main.immediate would
+        // otherwise interleave two launched blocks at their first suspend).
         scope.launch {
             if (word.isNotEmpty()) commitWord(word)
             ic?.commitText(" ", 1)
+            updatePredictions()
         }
     }
 
@@ -383,8 +416,17 @@ class OnyxKeyboardController(
             ic?.finishComposingText()
         } else {
             ic?.finishComposingText()
-            if (learning.value) repo.recordWord(pid, word, lang.value.code)
+            if (learning.value) {
+                repo.recordWord(pid, word, lang.value.code)
+                // Full-suggestion memory: also learn the word PAIR so this
+                // word can predict its own continuations next time.
+                lastWord?.let { prev ->
+                    repo.recordBigram(pid, prev, word, lang.value.code)
+                }
+            }
         }
+        lastWord = word.trim().lowercase()
+        sentenceStart = false
         repo.bumpWords()
     }
 
@@ -400,7 +442,13 @@ class OnyxKeyboardController(
             } else {
                 ic?.setComposingText(buffer.value, 1)
             }
-            updateSuggestions()
+            // Backspacing to an empty buffer returns the strip to the
+            // next-word predictions that were showing before the word.
+            if (buffer.value.isEmpty()) {
+                scope.launch { updatePredictions() }
+            } else {
+                updateSuggestions()
+            }
         } else {
             ic?.deleteSurroundingText(1, 0)
             scope.launch { runCatching { repo.bumpKeystrokes() } }
@@ -444,6 +492,14 @@ class OnyxKeyboardController(
         if (lang.value == Lang.EN && text.length == 1 && text[0] in SENTENCE_TERMINATORS) {
             autoCapNext.value = true
         }
+        // Any terminator (either language) closes the sentence: the bigram
+        // context dies and the strip switches to starter words for the
+        // fresh sentence.
+        if (text.length == 1 && text[0] in SENTENCE_TERMINATORS) {
+            lastWord = null
+            sentenceStart = true
+            scope.launch { updatePredictions() }
+        }
         scope.launch { runCatching { repo.bumpKeystrokes() } }
     }
 
@@ -463,7 +519,13 @@ class OnyxKeyboardController(
             ic?.commitText("\n", 1)
             if (lang.value == Lang.EN) autoCapNext.value = true
         }
-        scope.launch { runCatching { repo.bumpKeystrokes() } }
+        // A newline is a sentence boundary too — starter predictions.
+        lastWord = null
+        sentenceStart = true
+        scope.launch {
+            updatePredictions()
+            runCatching { repo.bumpKeystrokes() }
+        }
     }
 
     fun insertEmoji(e: String) {
@@ -489,11 +551,65 @@ class OnyxKeyboardController(
         scope.launch { runCatching { repo.putSetting(OnyxRepository.KEY_RECENT_EMOJI, persisted) } }
     }
 
+    /**
+     * A suggestion chip was tapped. Two modes:
+     *
+     *  - COMPOSING (buffer non-empty): the typed prefix is replaced by the
+     *    picked word, then the normal space path learns and commits it.
+     *  - PREDICTION (buffer empty): the word + a trailing space are inserted
+     *    in one shot, the pair (previous → picked) is learned, and the strip
+     *    immediately chains predictions for the NEW context.
+     */
     fun commitSuggestion(s: Suggestion) {
         haptic()
-        ic?.setComposingText(s.text, 1)
-        buffer.value = s.text
-        onSpace()
+        val shown = displaySuggestion(s)
+        if (buffer.value.isNotEmpty()) {
+            ic?.setComposingText(shown, 1)
+            buffer.value = shown
+            onSpace()
+        } else {
+            clearGlide()
+            lastCommitWasSpace = true
+            lastSpaceAt = System.currentTimeMillis()
+            ic?.finishComposingText()
+            ic?.commitText("$shown ", 1)
+            val prev = lastWord
+            val pid = profile.value?.id
+            scope.launch {
+                runCatching {
+                    if (pid != null && learning.value) {
+                        repo.recordWord(pid, s.text, lang.value.code)
+                        if (prev != null) repo.recordBigram(pid, prev, s.text, lang.value.code)
+                    }
+                    repo.bumpWords()
+                }
+            }
+            lastWord = s.text.trim().lowercase()
+            sentenceStart = false
+            scope.launch {
+                updatePredictions()
+                runCatching { repo.bumpKeystrokes() }
+            }
+        }
+    }
+
+    /**
+     * Rendered form of a suggestion chip. English words capitalize when the
+     * sentence context demands it (fresh sentence / shift armed) so "the"
+     * shows as "The" right after a period.
+     */
+    fun displaySuggestion(s: Suggestion): String {
+        if (lang.value != Lang.EN || s.text.isEmpty()) return s.text
+        return if (autoCapNext.value || shift.value != ShiftState.OFF) {
+            s.text.replaceFirstChar { it.uppercase() }
+        } else {
+            s.text
+        }
+    }
+
+    /** User dismissed the strip — text stays untouched, chips just vanish. */
+    fun dismissSuggestions() {
+        suggestions.value = emptyList()
     }
 
     // ------------------------------------------------------------- suggestions
@@ -512,6 +628,27 @@ class OnyxKeyboardController(
             // Only apply if the buffer hasn't moved on.
             if (buffer.value == prefix) suggestions.value = list
         }
+    }
+
+    /**
+     * NEXT-WORD prediction — fills the strip when the composing buffer is
+     * empty but a sentence context exists (a word was just committed, or a
+     * terminator/newline opened a fresh sentence). Silent at attach time so
+     * the ONYX branding stays visible until the user actually types.
+     */
+    private suspend fun updatePredictions() {
+        if (!predictions.value) {
+            suggestions.value = emptyList()
+            return
+        }
+        if (buffer.value.isNotEmpty()) return // composing mode owns the strip
+        if (lastWord == null && !sentenceStart) return // no context — stay quiet
+        val pid = profile.value?.id ?: return
+        val list = runCatching {
+            engine.predictNext(lastWord, lang.value.code, pid)
+        }.getOrDefault(emptyList())
+        // The user may have started typing while we computed — never clobber.
+        if (buffer.value.isEmpty()) suggestions.value = list
     }
 
     // ------------------------------------------------------------- cursor
@@ -562,6 +699,9 @@ class OnyxKeyboardController(
         if (buffer.value.isNotEmpty()) ic?.finishComposingText()
         buffer.value = ""
         suggestions.value = emptyList()
+        // Bigram memory is per-language — a context word from the other
+        // alphabet would predict nonsense. Start clean.
+        resetSentenceContext()
         lang.value = if (lang.value == Lang.AR) Lang.EN else Lang.AR
     }
 
@@ -601,6 +741,10 @@ class OnyxKeyboardController(
         ic?.commitText(out, 1)
         glideCommitted = out
         glideCandidates.value = candidates
+        // A glide-typed word becomes the prediction context: the following
+        // space will offer continuations of exactly this word.
+        lastWord = best.lowercase()
+        sentenceStart = false
         if (lang.value == Lang.EN) {
             if (shift.value == ShiftState.ON) shift.value = ShiftState.OFF
             autoCapNext.value = false

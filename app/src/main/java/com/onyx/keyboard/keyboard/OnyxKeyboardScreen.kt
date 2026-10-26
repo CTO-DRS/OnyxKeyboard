@@ -78,6 +78,8 @@ fun OnyxKeyboardScreen(controller: OnyxKeyboardController) {
     val page by controller.page.collectAsState()
     val altReq by controller.altPopup.collectAsState()
     val glideCands by controller.glideCandidates.collectAsState()
+    val suggestions by controller.suggestions.collectAsState()
+    val buffer by controller.buffer.collectAsState()
 
     Box(
         Modifier
@@ -123,7 +125,13 @@ fun OnyxKeyboardScreen(controller: OnyxKeyboardController) {
                 // Post-glide word alternatives — first entry (the committed
                 // word) is highlighted; tapping another swaps it in place.
                 GlideStrip(candidates = glideCands, controller = controller)
+            } else if (suggestions.isNotEmpty() && buffer.isNotEmpty()) {
+                // Actively composing a word with suggestions available — the
+                // full-width suggestion strip takes the toolbar's place.
+                SuggestionBar(controller)
             } else {
+                // Idle / predicting mode: language chip, compact prediction
+                // chips (next-word) and the tool dock share the row.
                 SmartToolbar(controller)
             }
 

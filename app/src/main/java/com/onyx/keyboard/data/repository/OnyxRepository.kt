@@ -2,6 +2,8 @@ package com.onyx.keyboard.data.repository
 
 import android.content.Context
 import com.onyx.keyboard.data.crypto.OnyxCrypto
+import com.onyx.keyboard.data.db.BigramDao
+import com.onyx.keyboard.data.db.BigramEntity
 import com.onyx.keyboard.data.db.ClipDao
 import com.onyx.keyboard.data.db.ClipEntity
 import com.onyx.keyboard.data.db.DailyStatsEntity
@@ -36,6 +38,7 @@ class OnyxRepository private constructor(context: Context) {
     private val wordDao: WordDao = db.wordDao()
     private val shortcutDao: ShortcutDao = db.shortcutDao()
     private val clipDao: ClipDao = db.clipDao()
+    private val bigramDao: BigramDao = db.bigramDao()
     private val statsDao = db.statsDao()
     val settings: SettingsDao = db.settingsDao()
 
@@ -50,6 +53,8 @@ class OnyxRepository private constructor(context: Context) {
         const val KEY_AUTOCORRECT = "autocorrect"
         const val KEY_LEARNING = "learning"
         const val KEY_GIF_NET = "gif_net"
+        /** Next-word prediction bar (bigram-driven) — user preference. */
+        const val KEY_PREDICTIONS = "predictions"
         const val KEY_NUMBER_ROW = "number_row"
         const val KEY_RECENT_EMOJI = "recent_emoji"
         /** Follow the system day/night mode and swap between light/dark presets. */
@@ -106,6 +111,7 @@ class OnyxRepository private constructor(context: Context) {
         if (profileDao.count() <= 1) return // keep at least one
         val victim = profileDao.byId(id) ?: return
         wordDao.deleteAllForProfile(id)
+        bigramDao.deleteAllForProfile(id)
         profileDao.delete(victim)
     }
 
@@ -161,7 +167,40 @@ class OnyxRepository private constructor(context: Context) {
 
     suspend fun wipeLearnedWords() {
         val all = profileDao.all()
-        all.forEach { wordDao.deleteAllForProfile(it.id) }
+        all.forEach {
+            wordDao.deleteAllForProfile(it.id)
+            bigramDao.deleteAllForProfile(it.id)
+        }
+    }
+
+    // ---------------------------------------------------------------- bigrams
+
+    /**
+     * Records a word PAIR the user actually typed consecutively. This is the
+     * fuel of next-word prediction: the pair is bumped when it already exists
+     * so frequently-used continuations float to the top. Hygiene mirrors
+     * [recordWord] — trimmed, lowercased, no digits, bounded length — plus
+     * the pair must differ (self-continuations are noise).
+     */
+    suspend fun recordBigram(pid: Long, prev: String, next: String, lang: String) {
+        val p = prev.trim().lowercase()
+        val n = next.trim().lowercase()
+        if (p.isEmpty() || n.isEmpty() || p == n) return
+        if (p.length > 24 || n.length > 24) return
+        if (p.any { it.isDigit() } || n.any { it.isDigit() }) return
+        val now = System.currentTimeMillis()
+        if (bigramDao.bump(pid, p, n, now) == 0) {
+            bigramDao.insert(
+                BigramEntity(profileId = pid, prev = p, next = n, lang = lang)
+            )
+        }
+    }
+
+    /** Best continuations of [prev], most frequent first. */
+    suspend fun nextWords(pid: Long, prev: String, limit: Int = 5): List<String> {
+        val p = prev.trim().lowercase()
+        if (p.isEmpty()) return emptyList()
+        return bigramDao.nextFor(pid, p, limit).map { it.next }
     }
 
     // ---------------------------------------------------------------- shortcuts

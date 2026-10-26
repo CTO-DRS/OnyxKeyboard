@@ -174,6 +174,28 @@ interface StatsDao {
 }
 
 @Dao
+interface BigramDao {
+    /** Most-frequent continuations of [prev] for this profile. */
+    @Query(
+        "SELECT * FROM bigrams WHERE profileId = :pid AND prev = :prev " +
+            "ORDER BY freq DESC, lastUsed DESC LIMIT :limit"
+    )
+    suspend fun nextFor(pid: Long, prev: String, limit: Int): List<BigramEntity>
+
+    @Query(
+        "UPDATE bigrams SET freq = freq + 1, lastUsed = :now " +
+            "WHERE profileId = :pid AND prev = :prev AND next = :next"
+    )
+    suspend fun bump(pid: Long, prev: String, next: String, now: Long): Int
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insert(bigram: BigramEntity): Long
+
+    @Query("DELETE FROM bigrams WHERE profileId = :pid")
+    suspend fun deleteAllForProfile(pid: Long)
+}
+
+@Dao
 interface SettingsDao {
     @Query("SELECT value FROM settings WHERE `key` = :key")
     suspend fun get(key: String): String?

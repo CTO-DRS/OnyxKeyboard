@@ -22,6 +22,16 @@ object ArabicLexicon {
         "سؤال", "جواب", "فكرة", "مشروع", "وقت", "ساعة", "دقيقة", "يوم", "أسبوع", "شهر",
         "سنة", "عمل", "بيت", "مدرسة", "جامعة", "طريق", "مدينة", "بلد", "عالم", "حياة"
     )
+
+    /**
+     * Sentence-starter words shown as next-word predictions when a NEW
+     * sentence begins (after a terminator / newline) and the user has no
+     * learned continuation for the context. Ordered by natural frequency.
+     */
+    val starters: List<String> = listOf(
+        "في", "من", "على", "إلى", "هذا", "هذه", "أنا", "أنت",
+        "نحن", "كل", "عندما", "اليوم", "شكرا", "كيف", "ثم", "لكن"
+    )
 }
 
 object EnglishLexicon {
@@ -42,5 +52,11 @@ object EnglishLexicon {
         "speed", "strength", "energy", "message", "file", "photo", "video", "website", "internet", "program",
         "app", "screen", "keyboard", "phone", "computer", "idea", "question", "answer", "project", "minute",
         "hour", "day", "week", "month", "year", "city", "street", "country", "road", "door"
+    )
+
+    /** Sentence starters for next-word prediction at a fresh sentence. */
+    val starters: List<String> = listOf(
+        "the", "i", "you", "we", "it", "and", "but", "this",
+        "that", "please", "thanks", "hello", "today", "just", "now", "how"
     )
 }
