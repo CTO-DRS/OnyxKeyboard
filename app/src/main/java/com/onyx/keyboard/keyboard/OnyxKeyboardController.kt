@@ -1,5 +1,6 @@
 package com.onyx.keyboard.keyboard
 
+import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.media.AudioManager
@@ -146,6 +147,16 @@ class OnyxKeyboardController(
     val profile = MutableStateFlow<ProfileEntity?>(null)
     val profiles = MutableStateFlow<List<ProfileEntity>>(emptyList())
     val clips = MutableStateFlow<List<ClipEntity>>(emptyList())
+
+    /** Privacy switch — when off, copies are never saved to the clip history. */
+    val clipsEnabled = MutableStateFlow(true)
+
+    /**
+     * Current system-clipboard text powering the one-tap quick-paste chip in
+     * the toolbar. Consumed after a quick paste; refreshed by the watcher on
+     * every new copy and once when the keyboard wakes up.
+     */
+    val quickClip = MutableStateFlow<String?>(null)
     val themes = MutableStateFlow<List<ThemeEntity>>(emptyList())
 
     /** The user's selected preset as streamed from Room (before auto-day/night resolution). */
@@ -778,17 +789,69 @@ class OnyxKeyboardController(
     // ------------------------------------------------------------- clipboard
 
     fun startClipboardWatching() {
+        // Surface whatever is ALREADY on the system clipboard when the keyboard
+        // wakes up (so the quick-paste chip is useful immediately), not just
+        // copies made while it is open. Skipped when capture is off (privacy).
+        if (clipsEnabled.value) {
+            val current = runCatching {
+                clipboard?.primaryClip?.getItemAt(0)?.coerceToText(context)?.toString()
+            }.getOrNull()
+            if (!current.isNullOrBlank()) {
+                lastClip = current
+                quickClip.value = current
+                // Capture pre-existing clipboard content into the history too,
+                // so the panel matches what the chip offers.
+                scope.launch(Dispatchers.IO) {
+                    runCatching { repo.addClip(current) }
+                }
+            }
+        }
         clipboard?.addPrimaryClipChangedListener {
             val text = runCatching {
                 clipboard?.primaryClip?.getItemAt(0)?.coerceToText(context)?.toString()
             }.getOrNull()
-            if (!text.isNullOrBlank() && text != lastClip) {
-                lastClip = text
-                scope.launch(Dispatchers.IO) {
-                    runCatching { repo.addClip(text) }
-                }
+            if (text.isNullOrBlank() || text == lastClip) return@addPrimaryClipChangedListener
+            lastClip = text
+            if (!clipsEnabled.value) return@addPrimaryClipChangedListener
+            quickClip.value = text
+            scope.launch(Dispatchers.IO) {
+                runCatching { repo.addClip(text) }
             }
         }
+    }
+
+    /**
+     * One-tap paste of the current system clipboard (toolbar quick chip).
+     * Consumes the chip so the same content is not pasted twice by accident.
+     */
+    fun pasteText(text: String) {
+        if (text.isEmpty()) return
+        haptic()
+        lastCommitWasSpace = false
+        ic?.commitText(text, 1)
+        quickClip.value = null
+    }
+
+    /**
+     * Re-copies an old clip back to the system clipboard. The watcher fires
+     * on the change and [OnyxRepository.addClip] bubbles the clip to the top
+     * of the history (pin preserved) — no manual bookkeeping needed.
+     */
+    fun copyClip(clip: ClipEntity) {
+        haptic()
+        scope.launch {
+            val text = runCatching { repo.decryptClip(clip) }.getOrDefault("")
+            if (text.isEmpty()) return@launch
+            runCatching {
+                clipboard?.setPrimaryClip(ClipData.newPlainText("onyx", text))
+            }
+        }
+    }
+
+    /** Wipes the whole clip history (pinned included) — confirm-to-clear in UI. */
+    fun clearClips() {
+        haptic()
+        scope.launch { runCatching { repo.clearClips() } }
     }
 
     fun pasteClip(clip: ClipEntity) {

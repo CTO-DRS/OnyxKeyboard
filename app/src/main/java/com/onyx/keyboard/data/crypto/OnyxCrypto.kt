@@ -22,6 +22,14 @@ object OnyxCrypto {
     private const val IV_SIZE = 12
     private const val TAG_BITS = 128
 
+    /**
+     * Prefix marking a value stored by the graceful-degradation fallback (the
+     * Keystore was unavailable at write time). Base64 output never contains
+     * ':', so the tag is unambiguous and decrypt can round-trip the fallback
+     * instead of silently losing those clips ("" forever).
+     */
+    private const val FALLBACK_PREFIX = "raw:"
+
     val isAvailable: Boolean by lazy { runCatching { obtainKey() }.isSuccess }
 
     private fun obtainKey(): SecretKey {
@@ -41,7 +49,7 @@ object OnyxCrypto {
         return generator.generateKey()
     }
 
-    /** Encrypts [plain] → Base64(iv ‖ ciphertext). Falls back to plain text on failure. */
+    /** Encrypts [plain] → Base64(iv ‖ ciphertext); falls back to a tagged plain value. */
     fun encrypt(plain: String): String {
         if (plain.isEmpty()) return ""
         return runCatching {
@@ -50,12 +58,13 @@ object OnyxCrypto {
             val iv = cipher.iv
             val ct = cipher.doFinal(plain.toByteArray(Charsets.UTF_8))
             Base64.encodeToString(iv + ct, Base64.NO_WRAP)
-        }.getOrElse { plain }
+        }.getOrElse { FALLBACK_PREFIX + plain }
     }
 
-    /** Decrypts Base64(iv ‖ ciphertext) → plain. Returns "" on failure. */
+    /** Decrypts Base64(iv ‖ ciphertext) → plain; unwraps tagged fallback values. Returns "" on failure. */
     fun decrypt(encoded: String): String {
         if (encoded.isEmpty()) return ""
+        if (encoded.startsWith(FALLBACK_PREFIX)) return encoded.removePrefix(FALLBACK_PREFIX)
         return runCatching {
             val raw = Base64.decode(encoded, Base64.NO_WRAP)
             if (raw.size <= IV_SIZE) return ""

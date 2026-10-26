@@ -47,6 +47,8 @@ fun SmartToolbar(controller: OnyxKeyboardController) {
     val theme by controller.theme.collectAsState()
     val suggestions by controller.suggestions.collectAsState()
     val lang by controller.lang.collectAsState()
+    val quickClip by controller.quickClip.collectAsState()
+    val page by controller.page.collectAsState()
 
     Row(
         modifier = Modifier
@@ -80,13 +82,41 @@ fun SmartToolbar(controller: OnyxKeyboardController) {
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             if (suggestions.isEmpty()) {
-                Text(
-                    text = "ONYX",
-                    color = theme.accent.copy(alpha = 0.5f),
-                    fontSize = 11.sp,
-                    letterSpacing = 3.sp,
-                    modifier = Modifier.padding(start = 6.dp)
-                )
+                // One-tap paste of the CURRENT system clipboard (Gboard-style
+                // quick chip) — hidden while the clipboard panel shows its own.
+                val q = quickClip
+                if (q != null && page != KeyboardPage.CLIPBOARD) {
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(9.dp))
+                            .background(theme.accent.copy(alpha = 0.16f))
+                            .clickable { controller.pasteText(q) }
+                            .padding(horizontal = 8.dp, vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.ContentPaste,
+                            contentDescription = stringResource(R.string.clipboard_paste_now),
+                            tint = theme.accent,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Text(
+                            text = " " + q.take(24),
+                            color = theme.keyText,
+                            fontSize = 13.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                } else {
+                    Text(
+                        text = "ONYX",
+                        color = theme.accent.copy(alpha = 0.5f),
+                        fontSize = 11.sp,
+                        letterSpacing = 3.sp,
+                        modifier = Modifier.padding(start = 6.dp)
+                    )
+                }
             } else {
                 suggestions.forEach { s ->
                     Box(

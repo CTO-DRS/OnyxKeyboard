@@ -76,6 +76,9 @@ fun SettingsPanel(controller: OnyxKeyboardController) {
         ToggleRow(controller, stringResource(R.string.settings_learning), controller.learning) {
             controller.setSetting(OnyxRepository.KEY_LEARNING, it)
         }
+        ToggleRow(controller, stringResource(R.string.settings_clip_capture), controller.clipsEnabled) {
+            controller.setSetting(OnyxRepository.KEY_CLIP_CAPTURE, it)
+        }
         ToggleRow(controller, stringResource(R.string.settings_gifnet), controller.gifNet) {
             controller.setSetting(OnyxRepository.KEY_GIF_NET, it)
         }

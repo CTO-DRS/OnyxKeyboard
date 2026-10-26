@@ -163,6 +163,15 @@ class OnyxIME : InputMethodService() {
                     controller.refreshTheme()
                 }
         }
+        scope.launch {
+            repo.observeSetting(OnyxRepository.KEY_CLIP_CAPTURE, "true")
+                .collectLatest {
+                    controller.clipsEnabled.value = it == "true"
+                    // Privacy: a disabled capture must not keep surfacing the
+                    // live clipboard in the quick-paste chip.
+                    if (it != "true") controller.quickClip.value = null
+                }
+        }
     }
 
     /**

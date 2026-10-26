@@ -59,6 +59,8 @@ class OnyxRepository private constructor(context: Context) {
         const val KEY_RECENT_EMOJI = "recent_emoji"
         /** Follow the system day/night mode and swap between light/dark presets. */
         const val KEY_AUTO_THEME = "auto_theme"
+        /** Privacy switch: when off, copies are never saved to the clip history. */
+        const val KEY_CLIP_CAPTURE = "clip_capture"
         const val MAX_CLIPS = 30
 
         @Volatile
@@ -226,13 +228,18 @@ class OnyxRepository private constructor(context: Context) {
 
     suspend fun addClip(text: String) {
         if (text.isBlank()) return
-        val recent = clipDao.recent()
-        // Skip duplicates of the last entries (cheap exact check on decrypted head)
-        val dup = recent.any { OnyxCrypto.decrypt(it.contentEnc) == text }
-        if (dup) return
-        clipDao.insert(
-            ClipEntity(contentEnc = OnyxCrypto.encrypt(text))
-        )
+        // Exact-duplicate check across the WHOLE (cap-bounded) history — the old
+        // recent(5) window let a re-copied older clip slip in as a second row.
+        // A re-copy now moves the clip to the top instead, preserving its pin.
+        val dup = clipDao.all().firstOrNull { OnyxCrypto.decrypt(it.contentEnc) == text }
+        if (dup != null) {
+            clipDao.deleteById(dup.id)
+            clipDao.insert(
+                ClipEntity(contentEnc = OnyxCrypto.encrypt(text), pinned = dup.pinned)
+            )
+        } else {
+            clipDao.insert(ClipEntity(contentEnc = OnyxCrypto.encrypt(text)))
+        }
         clipDao.trim(MAX_CLIPS)
     }
 

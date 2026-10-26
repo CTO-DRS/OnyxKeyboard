@@ -118,6 +118,10 @@ interface ClipDao {
     @Query("SELECT * FROM clips ORDER BY createdAt DESC LIMIT 5")
     suspend fun recent(): List<ClipEntity>
 
+    /** Full (cap-bounded) history for exact-duplicate detection on capture. */
+    @Query("SELECT * FROM clips")
+    suspend fun all(): List<ClipEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(clip: ClipEntity): Long
 
