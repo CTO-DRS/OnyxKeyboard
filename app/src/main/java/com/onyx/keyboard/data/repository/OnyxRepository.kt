@@ -62,6 +62,8 @@ class OnyxRepository private constructor(context: Context) {
         /** Privacy switch: when off, copies are never saved to the clip history. */
         const val KEY_CLIP_CAPTURE = "clip_capture"
         const val MAX_CLIPS = 30
+        /** Upper bound on user-created themes — keeps the gallery sane. */
+        const val MAX_CUSTOM_THEMES = 30
 
         @Volatile
         private var instance: OnyxRepository? = null
@@ -122,6 +124,26 @@ class OnyxRepository private constructor(context: Context) {
     fun observeThemes(): Flow<List<ThemeEntity>> = themeDao.observeAll()
 
     suspend fun themeById(id: Long): ThemeEntity? = themeDao.byId(id)
+
+    /**
+     * Creates (id = 0) or updates (id of an existing CUSTOM row) a user theme.
+     * Factory presets are immutable: trying to save over a builtin id or past
+     * [MAX_CUSTOM_THEMES] returns -1 and touches nothing.
+     */
+    suspend fun saveCustomTheme(theme: ThemeEntity): Long {
+        val sanitized = theme.copy(builtin = false)
+        if (sanitized.id != 0L) {
+            val existing = themeDao.byId(sanitized.id) ?: return -1L
+            if (existing.builtin) return -1L
+            themeDao.insertAll(listOf(sanitized))
+            return sanitized.id
+        }
+        if (themeDao.countCustom() >= MAX_CUSTOM_THEMES) return -1L
+        return themeDao.insert(sanitized)
+    }
+
+    /** Deletes a user theme; factory presets can never be deleted. */
+    suspend fun deleteCustomTheme(id: Long): Boolean = themeDao.deleteCustomById(id) > 0
 
     /** The live theme of the active profile, as consumed by the IME surface. */
     @OptIn(ExperimentalCoroutinesApi::class)

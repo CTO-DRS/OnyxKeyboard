@@ -154,6 +154,7 @@ fun OnyxKeyboardScreen(controller: OnyxKeyboardController) {
                     KeyboardPage.VOICE -> VoicePanel(controller)
                     KeyboardPage.SETTINGS -> SettingsPanel(controller)
                     KeyboardPage.THEMES -> ThemesPanel(controller)
+                    KeyboardPage.THEME_EDITOR -> ThemeEditorPanel(controller)
                 }
             }
         }

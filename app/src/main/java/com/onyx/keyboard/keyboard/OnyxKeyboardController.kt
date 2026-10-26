@@ -23,8 +23,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.random.Random
 
-enum class KeyboardPage { LETTERS, SYMBOLS, NUMPAD, EMOJI, CLIPBOARD, TRANSLATE, GIF, SETTINGS, THEMES, VOICE }
+enum class KeyboardPage { LETTERS, SYMBOLS, NUMPAD, EMOJI, CLIPBOARD, TRANSLATE, GIF, SETTINGS, THEMES, THEME_EDITOR, VOICE }
 enum class Lang(val code: String) { AR("ar"), EN("en") }
 enum class ShiftState { OFF, ON, CAPS }
 
@@ -40,6 +41,36 @@ internal fun luminanceOf(argb: Long): Float {
 
 /** A preset is "light" when its dominant surface is bright. */
 fun ThemeEntity.isLight(): Boolean = luminanceOf(surfaceTop) > 0.5f
+
+/**
+ * A freshly shuffled custom look — one random hue family, two coherent
+ * variants. Pure + seedable so tests can pin the output.
+ */
+internal fun shuffledThemeColors(random: Random, dark: Boolean? = null): ThemeEntity {
+    fun hsv(hue: Float, sat: Float, v: Float): Long =
+        android.graphics.Color.HSVToColor(floatArrayOf((hue % 360f + 360f) % 360f, sat, v))
+            .toLong() and 0xFFFFFFFFL
+    val isDark = dark ?: random.nextBoolean()
+    val h = random.nextInt(360).toFloat()
+    val accentHue = h + 30f + random.nextInt(60)
+    return if (isDark) {
+        ThemeEntity(
+            name = "",
+            surfaceTop = hsv(h, 0.45f, 0.10f), surfaceBottom = hsv(h, 0.50f, 0.17f),
+            keyFill = hsv(h, 0.40f, 0.24f), keyText = hsv(h, 0.14f, 0.97f),
+            accent = hsv(accentHue, 0.72f, 0.95f), glow = hsv(accentHue, 0.82f, 0.85f),
+            particle = hsv(accentHue, 0.72f, 0.95f), builtin = false
+        )
+    } else {
+        ThemeEntity(
+            name = "",
+            surfaceTop = hsv(h, 0.22f, 0.97f), surfaceBottom = hsv(h, 0.28f, 0.91f),
+            keyFill = hsv(h, 0.10f, 1.00f), keyText = hsv(h, 0.45f, 0.20f),
+            accent = hsv(accentHue, 0.65f, 0.85f), glow = hsv(accentHue, 0.75f, 0.78f),
+            particle = hsv(accentHue, 0.65f, 0.85f), builtin = false
+        )
+    }
+}
 
 /**
  * Theme resolution for the auto day/night mode — a PURE function so it is
@@ -162,6 +193,22 @@ class OnyxKeyboardController(
     /** The user's selected preset as streamed from Room (before auto-day/night resolution). */
     val userTheme = MutableStateFlow<ThemeEntity?>(null)
 
+    // ------------------------------------------------------------- custom themes
+
+    /**
+     * Draft loaded into the theme editor; null = editor closed. A draft with
+     * id == 0 is a brand-new theme, anything else edits an existing custom row.
+     */
+    val editingTheme = MutableStateFlow<ThemeEntity?>(null)
+
+    /**
+     * When non-null, every keystroke (chars / space / backspace / alts) is
+     * routed into this internal buffer instead of the app's InputConnection.
+     * Powers the theme-editor name field — a real Compose TextField inside the
+     * IME surface can never receive the IME's own keys.
+     */
+    val internalCapture = MutableStateFlow<String?>(null)
+
     val haptics = MutableStateFlow(true)
     val sound = MutableStateFlow(true)
     val particles = MutableStateFlow(true)
@@ -271,6 +318,9 @@ class OnyxKeyboardController(
         clearGlide()
         resetSentenceContext()
         enterActionId = if (numeric) 0 else editorActionId
+        // A fresh field is a fresh session — never leak editor state into it.
+        editingTheme.value = null
+        internalCapture.value = null
         page.value = if (numeric) KeyboardPage.SYMBOLS else KeyboardPage.LETTERS
     }
 
@@ -313,6 +363,7 @@ class OnyxKeyboardController(
         haptic(); clickSound()
         clearGlide()
         val c = applyCase(raw)
+        if (captureKey(c)) { autoCapNext.value = false; return }
         buffer.value += c
         ic?.setComposingText(buffer.value, 1)
         autoCapNext.value = false
@@ -332,6 +383,7 @@ class OnyxKeyboardController(
     fun onAltChar(raw: String) {
         altPopup.value = null
         haptic(); clickSound()
+        if (captureKey(raw)) { autoCapNext.value = false; return }
         buffer.value += raw
         ic?.setComposingText(buffer.value, 1)
         autoCapNext.value = false
@@ -379,6 +431,7 @@ class OnyxKeyboardController(
     fun onSpace() {
         haptic(); clickSound()
         clearGlide()
+        if (captureKey(" ")) { lastCommitWasSpace = false; return }
         val now = System.currentTimeMillis()
         val b = buffer.value
 
@@ -444,6 +497,7 @@ class OnyxKeyboardController(
     fun onBackspace() {
         haptic(); clickSound()
         clearGlide()
+        if (captureBackspace()) { lastCommitWasSpace = false; return }
         lastCommitWasSpace = false
         val b = buffer.value
         if (b.isNotEmpty()) {
@@ -469,6 +523,7 @@ class OnyxKeyboardController(
     /** Long-press backspace: delete the whole previous/being-typed word. */
     fun onBackspaceWord() {
         haptic()
+        if (internalCapture.value != null) { internalCapture.value = ""; return }
         val b = buffer.value
         if (b.isNotEmpty()) {
             buffer.value = ""
@@ -914,6 +969,97 @@ class OnyxKeyboardController(
 
     fun switchTheme(themeId: Long) {
         scope.launch { runCatching { repo.applyTheme(themeId) } }
+    }
+
+    // ------------------------------------------------------------- custom themes
+
+    /** Opens the editor; [seed] == null drafts a new theme from the active look. */
+    fun openThemeEditor(seed: ThemeEntity?, suggestedName: String) {
+        haptic()
+        val draft = seed?.copy()
+            ?: (userTheme.value ?: defaultTheme()).copy(id = 0, name = suggestedName)
+        editingTheme.value = draft
+        internalCapture.value = draft.name
+        page.value = KeyboardPage.THEME_EDITOR
+    }
+
+    /** Live palette mutation from the editor's swatches / shuffle. */
+    fun updateEditingTheme(transform: (ThemeEntity) -> ThemeEntity) {
+        editingTheme.value = editingTheme.value?.let(transform)
+    }
+
+    /** Discards the draft and returns to the gallery. */
+    fun closeThemeEditor() {
+        editingTheme.value = null
+        internalCapture.value = null
+        page.value = KeyboardPage.THEMES
+    }
+
+    /**
+     * Persists the draft (the name comes from the internal capture buffer)
+     * and applies it. Silently no-ops when the save is rejected (cap reached,
+     * stale draft) so the editor stays open.
+     */
+    fun saveEditingTheme() {
+        val draft = editingTheme.value ?: return
+        val typed = internalCapture.value?.trim().orEmpty()
+        val name = typed.ifEmpty { draft.name.ifBlank { "Onyx" } }
+        scope.launch {
+            val id = runCatching { repo.saveCustomTheme(draft.copy(name = name)) }
+                .getOrDefault(-1L)
+            if (id > 0) {
+                runCatching { repo.applyTheme(id) }
+                editingTheme.value = null
+                internalCapture.value = null
+                page.value = KeyboardPage.THEMES
+            }
+        }
+    }
+
+    /** Rolls a whole new random palette into the draft (name + id untouched). */
+    fun shuffleEditingTheme() {
+        haptic()
+        val roll = shuffledThemeColors(Random(System.nanoTime()))
+        updateEditingTheme {
+            it.copy(
+                surfaceTop = roll.surfaceTop, surfaceBottom = roll.surfaceBottom,
+                keyFill = roll.keyFill, keyText = roll.keyText,
+                accent = roll.accent, glow = roll.glow, particle = roll.particle
+            )
+        }
+    }
+
+    /** Two-tap confirm is owned by the panel; this performs the actual removal. */
+    fun deleteEditingThemeNow() {
+        val draft = editingTheme.value ?: return
+        if (draft.id == 0L || draft.builtin) return
+        val victimId = draft.id
+        haptic()
+        scope.launch {
+            runCatching {
+                val removed = repo.deleteCustomTheme(victimId)
+                if (removed && userTheme.value?.id == victimId) repo.applyTheme(1L)
+            }
+        }
+        editingTheme.value = null
+        internalCapture.value = null
+        page.value = KeyboardPage.THEMES
+    }
+
+    /** Routes [c] into the editor's name buffer while a capture is active. */
+    private fun captureKey(c: String): Boolean {
+        val buf = internalCapture.value ?: return false
+        internalCapture.value = buf + c
+        return true
+    }
+
+    /** Backspace twin of [captureKey] — code-point safe (surrogate pairs). */
+    private fun captureBackspace(): Boolean {
+        val buf = internalCapture.value ?: return false
+        if (buf.isNotEmpty()) {
+            internalCapture.value = buf.substring(0, buf.offsetByCodePoints(buf.length, -1))
+        }
+        return true
     }
 
     fun switchProfile(profileId: Long) {

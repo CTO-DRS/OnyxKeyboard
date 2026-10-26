@@ -91,6 +91,17 @@ interface ThemeDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(themes: List<ThemeEntity>)
 
+    /** Single-row insert; with an explicit id + REPLACE this becomes an update. */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(theme: ThemeEntity): Long
+
+    @Query("SELECT COUNT(*) FROM themes WHERE builtin = 0")
+    suspend fun countCustom(): Int
+
+    /** Returns 0 when [id] is a factory preset — builtins can never be removed. */
+    @Query("DELETE FROM themes WHERE id = :id AND builtin = 0")
+    suspend fun deleteCustomById(id: Long): Int
+
     @Query("DELETE FROM themes WHERE id = :id")
     suspend fun deleteById(id: Long)
 }

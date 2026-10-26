@@ -37,9 +37,26 @@
     <string name="apply_theme">اضغط على أي ثيم لتطبيقه على لوحة المفاتيح</string>
     <string name="current_theme">نشط</string>
     <string name="panel_themes">معرض الثيمات</string>
-    <string name="themes_browse">استعراض كل الثيمات (28)</string>
+    <string name="themes_browse">استعراض كل الثيمات</string>
     <string name="themes_mode_light">قالب فاتح</string>
     <string name="themes_mode_dark">قالب داكن</string>
+    <string name="themes_create">قالب جديد</string>
+    <string name="editor_my_theme">قالبي</string>
+    <string name="panel_theme_editor">محرر الثيمات</string>
+    <string name="editor_name_hint">الاسم</string>
+    <string name="editor_save">حفظ</string>
+    <string name="editor_cancel">إلغاء</string>
+    <string name="editor_delete">حذف</string>
+    <string name="editor_delete_confirm">اضغط مجددًا للتأكيد</string>
+    <string name="editor_shuffle">فاجئني</string>
+    <string name="editor_edit_theme">تحرير القالب</string>
+    <string name="editor_role_surface">السطح العلوي</string>
+    <string name="editor_role_surface_bottom">السطح السفلي</string>
+    <string name="editor_role_keys">خلفية الأزرار</string>
+    <string name="editor_role_text">نص الأزرار</string>
+    <string name="editor_role_accent">اللون المميز</string>
+    <string name="editor_role_glow">التوهج</string>
+    <string name="editor_role_particles">الجزيئات</string>
 
     <!-- Profiles screen -->
     <string name="add_profile">ملف جديد</string>

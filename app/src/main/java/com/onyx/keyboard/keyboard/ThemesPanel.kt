@@ -17,8 +17,10 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -41,16 +43,22 @@ import com.onyx.keyboard.data.db.ThemeEntity
 /**
  * DEDICATED THEMES PANEL — the in-keyboard upgrade of the theme section.
  *
- * Replaces "dig through quick settings" with a 3-column gallery of all 28
- * presets: every card renders a live mini-keyboard preview in the preset's
- * own palette (surface gradient, key row, accent spacebar), a light/dark
- * badge (auto day/night awareness) and a check ring on the active look.
- * Tapping a card applies the preset instantly (haptic + Room persist).
+ * Replaces "dig through quick settings" with a 3-column gallery: a create
+ * card opens the CUSTOM THEME EDITOR, every user theme carries an edit
+ * pencil, and all factory presets render a live mini-keyboard preview in
+ * their own palette, a light/dark badge (auto day/night awareness) and a
+ * check ring on the active look. Tapping a card applies it instantly
+ * (haptic + Room persist).
  */
 @Composable
 fun ThemesPanel(controller: OnyxKeyboardController) {
     val theme by controller.theme.collectAsState()
     val themes by controller.themes.collectAsState()
+
+    val createLabel = stringResource(R.string.themes_create)
+    val myThemePrefix = stringResource(R.string.editor_my_theme)
+    val custom = themes.filter { !it.builtin }
+    val builtin = themes.filter { it.builtin }
 
     Column(Modifier.fillMaxWidth().height(286.dp)) {
         PanelHeader(controller, stringResource(R.string.panel_themes))
@@ -63,10 +71,39 @@ fun ThemesPanel(controller: OnyxKeyboardController) {
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(themes, key = { it.id }) { t ->
+            item(key = "create") {
+                CreateThemeCard(
+                    label = createLabel,
+                    accent = theme.accent,
+                    keyText = theme.keyText,
+                    onClick = {
+                        controller.haptic()
+                        controller.openThemeEditor(
+                            seed = null,
+                            suggestedName = "$myThemePrefix ${custom.size + 1}"
+                        )
+                    }
+                )
+            }
+            items(custom, key = { it.id }) { t ->
                 MiniThemeCard(
                     theme = t,
                     selected = t.id == theme.id,
+                    onEdit = {
+                        controller.haptic()
+                        controller.openThemeEditor(t, "")
+                    },
+                    onClick = {
+                        controller.haptic()
+                        controller.switchTheme(t.id)
+                    }
+                )
+            }
+            items(builtin, key = { it.id }) { t ->
+                MiniThemeCard(
+                    theme = t,
+                    selected = t.id == theme.id,
+                    onEdit = null,
                     onClick = {
                         controller.haptic()
                         controller.switchTheme(t.id)
@@ -77,10 +114,50 @@ fun ThemesPanel(controller: OnyxKeyboardController) {
     }
 }
 
+/** The dashed-feel "+" card that opens the custom theme editor. */
+@Composable
+private fun CreateThemeCard(
+    label: String,
+    accent: Color,
+    keyText: Color,
+    onClick: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(88.dp)
+            .clip(RoundedCornerShape(13.dp))
+            .background(Color.White.copy(alpha = 0.05f))
+            .border(
+                width = 1.1.dp,
+                color = accent.copy(alpha = 0.55f),
+                shape = RoundedCornerShape(13.dp)
+            )
+            .clickable(onClick = onClick),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            imageVector = Icons.Filled.Add,
+            contentDescription = label,
+            tint = accent,
+            modifier = Modifier.size(22.dp)
+        )
+        Text(
+            text = label,
+            color = keyText.copy(alpha = 0.8f),
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.padding(top = 4.dp)
+        )
+    }
+}
+
 @Composable
 private fun MiniThemeCard(
     theme: ThemeEntity,
     selected: Boolean,
+    onEdit: (() -> Unit)?,
     onClick: () -> Unit,
 ) {
     Column(
@@ -110,6 +187,20 @@ private fun MiniThemeCard(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f)
             )
+            if (onEdit != null) {
+                // Custom theme → an edit pencil that opens the editor
+                // (inner clickable consumes the tap, card click untouched).
+                Icon(
+                    imageVector = Icons.Filled.Edit,
+                    contentDescription = stringResource(R.string.editor_edit_theme),
+                    tint = Color(theme.accent).copy(alpha = 0.9f),
+                    modifier = Modifier
+                        .size(13.dp)
+                        .clip(CircleShape)
+                        .clickable { onEdit() }
+                        .padding(1.dp)
+                )
+            }
             Icon(
                 imageVector = if (theme.isLight()) Icons.Filled.WbSunny else Icons.Filled.DarkMode,
                 contentDescription = if (theme.isLight()) stringResource(R.string.themes_mode_light)
