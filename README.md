@@ -124,7 +124,7 @@ OnyxKeyboard/
 
 **التوقيع (Release):**
 - Keystore: `onyx-release.keystore` (مضمّن في المشروع — **استبدله بمفتاحك الخاص قبل النشر على Google Play**)
-- Store/Key password: `***REMOVED***` — Alias: `onyx`
+- Store/Key password: kept outside the repo — put `onyx-release.keystore` and `keystore.properties` (storeFile, storePassword, keyAlias, keyPassword) in the project root, or set `ONYX_STORE_FILE`, `ONYX_STORE_PASSWORD`, `ONYX_KEY_PASSWORD`. Both are git-ignored. Alias: `onyx`
 - شهادة: CN=Onyx Keyboard, O=Onyx, C=SA
 
 **أخطاء أُصلحت أثناء التحقق (للمرجعية):**

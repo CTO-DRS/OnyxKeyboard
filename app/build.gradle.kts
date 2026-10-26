@@ -5,6 +5,17 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
+// Release signing is read from keystore.properties (git-ignored, project root) or
+// environment variables. The keystore and its passwords are kept outside this repository.
+val signingProps = java.util.Properties().apply {
+    val f = rootProject.file("keystore.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+fun signingValue(key: String, env: String): String? =
+    System.getenv(env) ?: signingProps.getProperty(key)
+val releaseStoreFile = signingValue("storeFile", "ONYX_STORE_FILE")?.let { rootProject.file(it) }
+val hasReleaseSigning = releaseStoreFile?.exists() == true
+
 android {
     namespace = "com.onyx.keyboard"
     compileSdk = 35
@@ -25,12 +36,13 @@ android {
     }
 
     signingConfigs {
-        create("release") {
-            // For production: replace with your own keystore + credentials.
-            storeFile = rootProject.file("onyx-release.keystore")
-            storePassword = "***REMOVED***"
-            keyAlias = "onyx"
-            keyPassword = "***REMOVED***"
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = releaseStoreFile
+                storePassword = signingValue("storePassword", "ONYX_STORE_PASSWORD")
+                keyAlias = signingValue("keyAlias", "ONYX_KEY_ALIAS") ?: "onyx"
+                keyPassword = signingValue("keyPassword", "ONYX_KEY_PASSWORD")
+            }
         }
     }
 
@@ -38,7 +50,7 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
-            signingConfig = signingConfigs.getByName("release")
+            if (hasReleaseSigning) signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

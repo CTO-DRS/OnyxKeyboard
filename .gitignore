@@ -9,3 +9,8 @@
 /captures
 .externalNativeBuild
 .cxx
+
+# Signing material (kept outside the repo)
+*.jks
+*.keystore
+keystore.properties
