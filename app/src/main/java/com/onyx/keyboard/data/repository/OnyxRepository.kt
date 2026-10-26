@@ -317,9 +317,11 @@ class OnyxRepository private constructor(context: Context) {
 }
 
 /**
- * Factory defaults — eight glass/neon looks seeded into Room so users can add
- * their own later. Ids 1-6 are the original dark presets; ids 7-8 are the
- * LIGHT presets used by the auto day/night theme mode.
+ * Factory defaults — 28 looks seeded into Room so users can add their own
+ * later. Ids 1-6 are the original dark presets; 7-8 the first LIGHT presets
+ * used by the auto day/night theme mode; the themes pack added ids 9-21
+ * (dark) and 22-28 (light). ensureSeeded() back-fills any missing ids on
+ * upgrade without touching user-customized rows.
  */
 fun defaultThemes(): List<ThemeEntity> = listOf(
     ThemeEntity(
@@ -369,5 +371,126 @@ fun defaultThemes(): List<ThemeEntity> = listOf(
         surfaceTop = 0xFFFDF4EC, surfaceBottom = 0xFFF6E7DC,
         keyFill = 0xFFFFFFFF, keyText = 0xFF33261C,
         accent = 0xFFE0653A, glow = 0xFFFF8A50, particle = 0xFFFF8A50
+    ),
+    // ---- Themes pack: 20 new presets (ids 9-28). 9-21 dark, 22-28 light. ----
+    ThemeEntity(
+        id = 9, name = "Aurora Borealis",
+        surfaceTop = 0xFF04120F, surfaceBottom = 0xFF0A2420,
+        keyFill = 0xFF10352E, keyText = 0xFFE7FFF8,
+        accent = 0xFF45F0C0, glow = 0xFF00BFA0, particle = 0xFF45F0C0
+    ),
+    ThemeEntity(
+        id = 10, name = "Deep Ocean",
+        surfaceTop = 0xFF030A18, surfaceBottom = 0xFF071530,
+        keyFill = 0xFF0C2044, keyText = 0xFFE4EEFF,
+        accent = 0xFF4D9FFF, glow = 0xFF2962FF, particle = 0xFF4D9FFF
+    ),
+    ThemeEntity(
+        id = 11, name = "Blood Moon",
+        surfaceTop = 0xFF120507, surfaceBottom = 0xFF240A0E,
+        keyFill = 0xFF38121A, keyText = 0xFFFFE9EC,
+        accent = 0xFFFF4D5E, glow = 0xFFC62828, particle = 0xFFFF4D5E
+    ),
+    ThemeEntity(
+        id = 12, name = "Royal Amethyst",
+        surfaceTop = 0xFF0C0616, surfaceBottom = 0xFF170D2B,
+        keyFill = 0xFF251445, keyText = 0xFFF3EAFF,
+        accent = 0xFFB388FF, glow = 0xFF7C4DFF, particle = 0xFFB388FF
+    ),
+    ThemeEntity(
+        id = 13, name = "Sahara Night",
+        surfaceTop = 0xFF120E06, surfaceBottom = 0xFF241C0B,
+        keyFill = 0xFF382B12, keyText = 0xFFFFF4DE,
+        accent = 0xFFFFC857, glow = 0xFFE0A030, particle = 0xFFFFC857
+    ),
+    ThemeEntity(
+        id = 14, name = "Graphite Mono",
+        surfaceTop = 0xFF0B0B0B, surfaceBottom = 0xFF161616,
+        keyFill = 0xFF242424, keyText = 0xFFF2F2F2,
+        accent = 0xFFB0BEC5, glow = 0xFF78909C, particle = 0xFFB0BEC5
+    ),
+    ThemeEntity(
+        id = 15, name = "Sakura Dusk",
+        surfaceTop = 0xFF130A12, surfaceBottom = 0xFF231224,
+        keyFill = 0xFF351A36, keyText = 0xFFFFEDF7,
+        accent = 0xFFFF8AC2, glow = 0xFFD4559E, particle = 0xFFFF8AC2
+    ),
+    ThemeEntity(
+        id = 16, name = "Neon Grid",
+        surfaceTop = 0xFF050A05, surfaceBottom = 0xFF0A140A,
+        keyFill = 0xFF12240F, keyText = 0xFFEFFFEA,
+        accent = 0xFF8FFF3D, glow = 0xFF64DD17, particle = 0xFF8FFF3D
+    ),
+    ThemeEntity(
+        id = 17, name = "Copper Rust",
+        surfaceTop = 0xFF110B07, surfaceBottom = 0xFF21160C,
+        keyFill = 0xFF33220F, keyText = 0xFFFFF0E2,
+        accent = 0xFFE08D57, glow = 0xFFB96635, particle = 0xFFE08D57
+    ),
+    ThemeEntity(
+        id = 18, name = "Arctic Steel",
+        surfaceTop = 0xFF0A0F14, surfaceBottom = 0xFF141D26,
+        keyFill = 0xFF1F2D3A, keyText = 0xFFE9F1F7,
+        accent = 0xFF6FB7E8, glow = 0xFF4A90C2, particle = 0xFF6FB7E8
+    ),
+    ThemeEntity(
+        id = 19, name = "Amber Dune",
+        surfaceTop = 0xFF130F07, surfaceBottom = 0xFF26200D,
+        keyFill = 0xFF3A3114, keyText = 0xFFFFF6DF,
+        accent = 0xFFFFD166, glow = 0xFFE8B33A, particle = 0xFFFFD166
+    ),
+    ThemeEntity(
+        id = 20, name = "Ultraviolet",
+        surfaceTop = 0xFF0D0514, surfaceBottom = 0xFF1B0A28,
+        keyFill = 0xFF2C1040, keyText = 0xFFF8EBFF,
+        accent = 0xFFE254FF, glow = 0xFFAA00FF, particle = 0xFFE254FF
+    ),
+    ThemeEntity(
+        id = 21, name = "Forest Canopy",
+        surfaceTop = 0xFF060D06, surfaceBottom = 0xFF0D1C0C,
+        keyFill = 0xFF163016, keyText = 0xFFECFFEC,
+        accent = 0xFF7ED957, glow = 0xFF4CAF50, particle = 0xFF7ED957
+    ),
+    ThemeEntity(
+        id = 22, name = "Mint Paper",
+        surfaceTop = 0xFFEFFAF3, surfaceBottom = 0xFFDDF2E7,
+        keyFill = 0xFFFFFFFF, keyText = 0xFF1D3328,
+        accent = 0xFF00875A, glow = 0xFF4DB6A0, particle = 0xFF00A878
+    ),
+    ThemeEntity(
+        id = 23, name = "Sky Cotton",
+        surfaceTop = 0xFFEFF6FD, surfaceBottom = 0xFFDCEBFA,
+        keyFill = 0xFFFFFFFF, keyText = 0xFF1B2A3A,
+        accent = 0xFF1976D2, glow = 0xFF64B5F6, particle = 0xFF42A5F5
+    ),
+    ThemeEntity(
+        id = 24, name = "Lavender Mist",
+        surfaceTop = 0xFFF5F1FB, surfaceBottom = 0xFFE9E2F6,
+        keyFill = 0xFFFFFFFF, keyText = 0xFF2B2140,
+        accent = 0xFF673AB7, glow = 0xFFB39DDB, particle = 0xFF9575CD
+    ),
+    ThemeEntity(
+        id = 25, name = "Rose Quartz",
+        surfaceTop = 0xFFFBF0F3, surfaceBottom = 0xFFF6DEE6,
+        keyFill = 0xFFFFFFFF, keyText = 0xFF3A2230,
+        accent = 0xFFC2185B, glow = 0xFFF48FB1, particle = 0xFFEC6E9E
+    ),
+    ThemeEntity(
+        id = 26, name = "Ivory Ink",
+        surfaceTop = 0xFFFAF6EE, surfaceBottom = 0xFFEFE7D8,
+        keyFill = 0xFFFFFFFF, keyText = 0xFF2E2A22,
+        accent = 0xFF8C6D1F, glow = 0xFFC9A84C, particle = 0xFFA67C00
+    ),
+    ThemeEntity(
+        id = 27, name = "Sage Light",
+        surfaceTop = 0xFFF1F4EC, surfaceBottom = 0xFFE2E9D8,
+        keyFill = 0xFFFFFFFF, keyText = 0xFF26301F,
+        accent = 0xFF5E8A3C, glow = 0xFF9CCC65, particle = 0xFF7CB342
+    ),
+    ThemeEntity(
+        id = 28, name = "Pearl Slate",
+        surfaceTop = 0xFFF2F4F7, surfaceBottom = 0xFFE1E6EC,
+        keyFill = 0xFFFFFFFF, keyText = 0xFF232B33,
+        accent = 0xFF455A64, glow = 0xFF90A4AE, particle = 0xFF607D8B
     ),
 )

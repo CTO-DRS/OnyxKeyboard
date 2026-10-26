@@ -58,9 +58,11 @@ class OnyxPolishPackTest {
     // --------------------------------------------------- light/dark presets
 
     @Test
-    fun factory_themes_have_six_dark_and_two_light_presets() {
+    fun factory_themes_start_with_six_dark_then_two_light_presets() {
         val themes = defaultThemes()
-        assertEquals(8, themes.size)
+        // Catalog grew to 28 with the themes pack (ids 9-28) — the original
+        // 1-8 block keeps its dark/light split.
+        assertEquals(28, themes.size)
         assertTrue(themes.filter { it.id in 1L..6L }.none { it.isLight() })
         assertTrue(themes.filter { it.id in 7L..8L }.all { it.isLight() })
     }
@@ -178,8 +180,8 @@ class OnyxPolishPackTest {
     @Test
     fun ensureSeeded_restores_missing_factory_themes_on_older_installs() = runBlocking {
         val repo = AppGraph.repo
-        repo.ensureSeeded() // fresh → all 8 present
-        assertEquals(8, repo.themeDao.all().count { it.builtin })
+        repo.ensureSeeded() // fresh → all 28 present
+        assertEquals(28, repo.themeDao.all().count { it.builtin })
 
         // Simulate an install from before the light presets existed.
         repo.themeDao.deleteById(7L)

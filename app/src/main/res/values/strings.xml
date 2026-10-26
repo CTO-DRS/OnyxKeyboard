@@ -38,6 +38,10 @@
     <!-- Themes screen -->
     <string name="apply_theme">Tap a theme to apply it to the keyboard</string>
     <string name="current_theme">Active</string>
+    <string name="panel_themes">Themes gallery</string>
+    <string name="themes_browse">Browse all 28 themes</string>
+    <string name="themes_mode_light">Light preset</string>
+    <string name="themes_mode_dark">Dark preset</string>
 
     <!-- Profiles screen -->
     <string name="add_profile">New profile</string>

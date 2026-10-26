@@ -24,7 +24,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-enum class KeyboardPage { LETTERS, SYMBOLS, NUMPAD, EMOJI, CLIPBOARD, TRANSLATE, GIF, SETTINGS, VOICE }
+enum class KeyboardPage { LETTERS, SYMBOLS, NUMPAD, EMOJI, CLIPBOARD, TRANSLATE, GIF, SETTINGS, THEMES, VOICE }
 enum class Lang(val code: String) { AR("ar"), EN("en") }
 enum class ShiftState { OFF, ON, CAPS }
 

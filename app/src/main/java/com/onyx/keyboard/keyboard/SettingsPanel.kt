@@ -17,6 +17,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -90,6 +93,38 @@ fun SettingsPanel(controller: OnyxKeyboardController) {
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(top = 10.dp, bottom = 4.dp)
         )
+        // Full gallery — the dedicated themes panel with live previews.
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(theme.accent.copy(alpha = 0.14f))
+                .clickable { controller.setPage(KeyboardPage.THEMES) }
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Palette,
+                contentDescription = stringResource(R.string.panel_themes),
+                tint = theme.accent,
+                modifier = Modifier.size(18.dp)
+            )
+            Text(
+                text = stringResource(R.string.themes_browse),
+                color = theme.keyText.copy(alpha = 0.9f),
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = 8.dp)
+            )
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                contentDescription = stringResource(R.string.themes_browse),
+                tint = theme.accent,
+                modifier = Modifier.size(16.dp)
+            )
+        }
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             items(themes, key = { it.id }) { t ->
                 val selected = t.id == theme.id

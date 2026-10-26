@@ -36,6 +36,10 @@
     <!-- Themes screen -->
     <string name="apply_theme">اضغط على أي ثيم لتطبيقه على لوحة المفاتيح</string>
     <string name="current_theme">نشط</string>
+    <string name="panel_themes">معرض الثيمات</string>
+    <string name="themes_browse">استعراض كل الثيمات (28)</string>
+    <string name="themes_mode_light">قالب فاتح</string>
+    <string name="themes_mode_dark">قالب داكن</string>
 
     <!-- Profiles screen -->
     <string name="add_profile">ملف جديد</string>

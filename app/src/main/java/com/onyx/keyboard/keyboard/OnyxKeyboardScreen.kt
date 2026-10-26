@@ -153,6 +153,7 @@ fun OnyxKeyboardScreen(controller: OnyxKeyboardController) {
                     KeyboardPage.GIF -> GifPanel(controller)
                     KeyboardPage.VOICE -> VoicePanel(controller)
                     KeyboardPage.SETTINGS -> SettingsPanel(controller)
+                    KeyboardPage.THEMES -> ThemesPanel(controller)
                 }
             }
         }
