@@ -6,9 +6,6 @@ import android.content.Context
 import android.content.Intent
 import android.media.AudioManager
 import android.os.Build
-import android.os.VibrationEffect
-import android.os.Vibrator
-import android.os.VibratorManager
 import android.view.inputmethod.ExtractedTextRequest
 import android.view.inputmethod.InputConnection
 import androidx.compose.ui.graphics.Color
@@ -307,15 +304,20 @@ class OnyxKeyboardController(
     /**
      * Recomputes the effective [theme] from the user selection, the preset
      * pool, the auto day/night switch and the system night mode. Called by
-     * the service whenever any of those inputs changes.
+     * the service whenever any of those inputs changes. The resolved row's
+     * FEEDBACK profiles ride along — every theme feels the way it was
+     * designed, not just the way it looks.
      */
     fun refreshTheme() {
-        theme.value = resolveTheme(
+        val resolved = resolveTheme(
             selected = userTheme.value,
             pool = themes.value,
             auto = autoTheme.value,
             dark = systemDark.value,
-        ).toOnyxColors()
+        )
+        theme.value = resolved.toOnyxColors()
+        feedbackSound.value = KeySoundProfile.from(resolved.soundProfile)
+        feedbackVibe.value = KeyVibeProfile.from(resolved.vibeProfile)
     }
 
     // ------------------------------------------------------------- attach/detach
@@ -363,29 +365,64 @@ class OnyxKeyboardController(
 
     // ------------------------------------------------------------- feedback
 
-    private val vibrator: Vibrator? by lazy {
-        runCatching {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                (context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager)
-                    ?.defaultVibrator
-            } else {
-                @Suppress("DEPRECATION")
-                context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
-            }
-        }.getOrNull()
-    }
+    /** Per-theme tap sound of the ACTIVE theme (drives every keystroke). */
+    val feedbackSound = MutableStateFlow(KeySoundProfile.DEFAULT)
 
-    fun haptic() {
-        if (!haptics.value) return
-        runCatching { vibrator?.vibrate(VibrationEffect.createOneShot(14, 48)) }
-    }
+    /** Per-theme key-press vibration of the ACTIVE theme. */
+    val feedbackVibe = MutableStateFlow(KeyVibeProfile.DEFAULT)
 
-    fun clickSound() {
-        if (!sound.value) return
+    private val vibrator by lazy { resolveVibrator(context) }
+
+    /** One shared ToneGenerator for every synthesized (non-system) sound. */
+    private val tonePlayer by lazy { TonePlayer(context) }
+
+    /** The platform key-press effect — the fallback + the "system" profile. */
+    private fun systemKeyEffect() {
         runCatching {
             val am = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return
             am.playSoundEffect(AudioManager.FX_KEYPRESS_STANDARD, -1f)
         }
+    }
+
+    private fun playVibe(profile: KeyVibeProfile) {
+        val effect = vibrationEffectFor(profile, vibrator?.hasAmplitudeControl() == true)
+            ?: return
+        runCatching { vibrator?.vibrate(effect) }
+    }
+
+    private fun playSound(profile: KeySoundProfile) {
+        if (!tonePlayer.play(profile)) systemKeyEffect()
+    }
+
+    /**
+     * Key-press vibration, shaped by the ACTIVE theme's vibe profile.
+     * The global haptics switch stays the master kill-switch; a theme can
+     * refine (or mute) what the master allows.
+     */
+    fun haptic() {
+        if (!haptics.value) return
+        playVibe(feedbackVibe.value)
+    }
+
+    /**
+     * Key-press sound, shaped by the ACTIVE theme's sound profile:
+     * synthesized tones for themed looks, the platform effect for "system",
+     * pure silence for "none". The global sound switch stays the master.
+     */
+    fun clickSound() {
+        if (!sound.value) return
+        playSound(feedbackSound.value)
+    }
+
+    /**
+     * Editor test chip: plays the DRAFT's sound (or vibration) without
+     * saving or touching the app — deliberately bypasses the master
+     * switches so a muted keyboard can still audition a look.
+     * [soundId]/[vibeId] == null skips that channel.
+     */
+    fun previewFeedback(soundId: String?, vibeId: String?) {
+        soundId?.let { playSound(KeySoundProfile.from(it)) }
+        vibeId?.let { playVibe(KeyVibeProfile.from(it)) }
     }
 
     // ------------------------------------------------------------- text input

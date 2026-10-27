@@ -426,7 +426,11 @@ class OnyxCommunityShapesTest {
         raw.close()
 
         val room = Room.databaseBuilder(app, OnyxDatabase::class.java, "mig_test.db")
-            .addMigrations(OnyxDatabase.MIGRATION_2_3, OnyxDatabase.MIGRATION_3_4)
+            .addMigrations(
+                OnyxDatabase.MIGRATION_2_3,
+                OnyxDatabase.MIGRATION_3_4,
+                OnyxDatabase.MIGRATION_4_5, // DB is now v5 — the chain must reach it
+            )
             .allowMainThreadQueries()
             .build()
         try {

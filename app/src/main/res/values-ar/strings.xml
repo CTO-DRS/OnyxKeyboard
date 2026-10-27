@@ -67,6 +67,21 @@
     <string name="space_style_text">كلمة</string>
     <string name="space_style_hidden">مخفية</string>
     <string name="space_bar_word">مسافة</string>
+    <string name="editor_key_sound">صوت النقر</string>
+    <string name="editor_key_vibe">الاهتزاز</string>
+    <string name="editor_feedback_test">جرّب</string>
+    <string name="sound_none">بلا</string>
+    <string name="sound_system">النظام</string>
+    <string name="sound_classic">كلاسيكي</string>
+    <string name="sound_wood">خشبي</string>
+    <string name="sound_pop">بوب</string>
+    <string name="sound_tick">تك</string>
+    <string name="sound_cyber">سايبر</string>
+    <string name="vibe_off">بلا</string>
+    <string name="vibe_light">خفيف</string>
+    <string name="vibe_normal">عادي</string>
+    <string name="vibe_strong">قوي</string>
+    <string name="vibe_double">نبضتان</string>
     <string name="themes_import">استيراد</string>
     <string name="themes_import_bad_code">لا يوجد رمز قالب صالح في الحافظة</string>
 

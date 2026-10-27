@@ -69,6 +69,21 @@
     <string name="space_style_text">Word</string>
     <string name="space_style_hidden">Blank</string>
     <string name="space_bar_word">Space</string>
+    <string name="editor_key_sound">Key tap sound</string>
+    <string name="editor_key_vibe">Vibration</string>
+    <string name="editor_feedback_test">Test</string>
+    <string name="sound_none">None</string>
+    <string name="sound_system">System</string>
+    <string name="sound_classic">Classic</string>
+    <string name="sound_wood">Wood</string>
+    <string name="sound_pop">Pop</string>
+    <string name="sound_tick">Tick</string>
+    <string name="sound_cyber">Cyber</string>
+    <string name="vibe_off">Off</string>
+    <string name="vibe_light">Light</string>
+    <string name="vibe_normal">Normal</string>
+    <string name="vibe_strong">Strong</string>
+    <string name="vibe_double">Double pulse</string>
     <string name="themes_import">Import</string>
     <string name="themes_import_bad_code">No valid theme code in clipboard</string>
 

@@ -34,6 +34,8 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.SpaceBar
+import androidx.compose.material.icons.filled.Vibration
+import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -51,6 +53,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -112,6 +115,25 @@ fun ThemeEditorPanel(controller: OnyxKeyboardController) {
     val iconStyle = stringResource(R.string.space_style_icon)
     val textStyle = stringResource(R.string.space_style_text)
     val hiddenStyle = stringResource(R.string.space_style_hidden)
+    val soundLabel = stringResource(R.string.editor_key_sound)
+    val vibeLabel = stringResource(R.string.editor_key_vibe)
+    val testLabel = stringResource(R.string.editor_feedback_test)
+    val soundOptions = listOf(
+        KeySoundProfile.NONE.id to stringResource(R.string.sound_none),
+        KeySoundProfile.SYSTEM.id to stringResource(R.string.sound_system),
+        KeySoundProfile.CLASSIC.id to stringResource(R.string.sound_classic),
+        KeySoundProfile.WOOD.id to stringResource(R.string.sound_wood),
+        KeySoundProfile.POP.id to stringResource(R.string.sound_pop),
+        KeySoundProfile.TICK.id to stringResource(R.string.sound_tick),
+        KeySoundProfile.CYBER.id to stringResource(R.string.sound_cyber),
+    )
+    val vibeOptions = listOf(
+        KeyVibeProfile.OFF.id to stringResource(R.string.vibe_off),
+        KeyVibeProfile.LIGHT.id to stringResource(R.string.vibe_light),
+        KeyVibeProfile.NORMAL.id to stringResource(R.string.vibe_normal),
+        KeyVibeProfile.STRONG.id to stringResource(R.string.vibe_strong),
+        KeyVibeProfile.DOUBLE.id to stringResource(R.string.vibe_double),
+    )
     val roles = listOf(
         EditorColorRole(
             stringResource(R.string.editor_role_surface),
@@ -312,6 +334,37 @@ fun ThemeEditorPanel(controller: OnyxKeyboardController) {
                 }
             }
             Spacer(Modifier.height(4.dp))
+
+            // ------------------------------------------------- feedback section
+            // Per-theme tap sound + vibration — every look carries its own
+            // feel; the test chip auditions it without saving or applying.
+            FeedbackOptionRow(
+                theme = theme,
+                label = soundLabel,
+                testIcon = Icons.Filled.VolumeUp,
+                testDesc = testLabel,
+                options = soundOptions,
+                selectedId = KeySoundProfile.from(d.soundProfile).id,
+                onTest = { controller.previewFeedback(d.soundProfile, null) },
+                onPick = { id ->
+                    controller.updateEditingTheme { it.copy(soundProfile = id) }
+                }
+            )
+            Spacer(Modifier.height(4.dp))
+
+            FeedbackOptionRow(
+                theme = theme,
+                label = vibeLabel,
+                testIcon = Icons.Filled.Vibration,
+                testDesc = testLabel,
+                options = vibeOptions,
+                selectedId = KeyVibeProfile.from(d.vibeProfile).id,
+                onTest = { controller.previewFeedback(null, d.vibeProfile) },
+                onPick = { id ->
+                    controller.updateEditingTheme { it.copy(vibeProfile = id) }
+                }
+            )
+            Spacer(Modifier.height(2.dp))
 
             // Optional background photo — picked through the transparent
             // trampoline; the file never leaves the device on export.
@@ -541,6 +594,67 @@ private fun RoleRow(
                             shape = CircleShape
                         )
                         .clickable { onPick(c) }
+                )
+            }
+        }
+    }
+}
+
+/**
+ * One per-theme feedback picker row: the role label, a small test chip that
+ * auditions the CURRENT draft selection, and a horizontal strip of profile
+ * chips (selected one fills with the accent). Mirrors the swatch-strip
+ * language of the color rows so the editor stays visually coherent.
+ */
+@Composable
+private fun FeedbackOptionRow(
+    theme: OnyxColors,
+    label: String,
+    testIcon: ImageVector,
+    testDesc: String,
+    options: List<Pair<String, String>>,
+    selectedId: String,
+    onTest: () -> Unit,
+    onPick: (String) -> Unit,
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            text = label,
+            color = theme.keyText.copy(alpha = 0.7f),
+            fontSize = 10.sp,
+            maxLines = 1,
+            modifier = Modifier.width(78.dp)
+        )
+        Icon(
+            imageVector = testIcon,
+            contentDescription = testDesc,
+            tint = theme.glow,
+            modifier = Modifier
+                .clip(CircleShape)
+                .clickable { onTest() }
+                .padding(4.dp)
+                .size(14.dp)
+        )
+        Spacer(Modifier.width(4.dp))
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            items(options.size) { i ->
+                val (id, text) = options[i]
+                val selected = id == selectedId
+                Text(
+                    text = text,
+                    color = if (selected) Color.Black
+                            else theme.keyText.copy(alpha = 0.85f),
+                    fontSize = 10.sp,
+                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                    maxLines = 1,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(
+                            if (selected) theme.accent
+                            else Color.White.copy(alpha = 0.07f)
+                        )
+                        .clickable { onPick(id) }
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
                 )
             }
         }

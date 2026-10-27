@@ -60,6 +60,18 @@ data class ThemeEntity(
      */
     @ColumnInfo(defaultValue = "0")
     val spaceLabel: Int = 0,
+    /**
+     * Per-theme key-tap sound (id of [com.onyx.keyboard.keyboard.KeySoundProfile]).
+     * v5 schema; travels inside shared codes (additive "feedback" object).
+     */
+    @ColumnInfo(defaultValue = "system")
+    val soundProfile: String = "system",
+    /**
+     * Per-theme key-press vibration (id of [com.onyx.keyboard.keyboard.KeyVibeProfile]).
+     * v5 schema; travels inside shared codes too.
+     */
+    @ColumnInfo(defaultValue = "default")
+    val vibeProfile: String = "default",
 )
 
 @Entity(

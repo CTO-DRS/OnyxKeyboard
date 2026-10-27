@@ -15,15 +15,17 @@ import org.json.JSONObject
  * the keyboard with one tap (no file-picker plumbing inside the IME).
  *
  * Encoded payload = the palette ONLY: name + the 7 colors + an OPTIONAL
- * additive "shape" object (key corner radius + space-bar face). Row ids,
+ * additive "shape" object (key corner radius + space-bar face) + an OPTIONAL
+ * additive "feedback" object (per-theme tap sound + vibration ids). Row ids,
  * builtin flags and the private background-photo path never leave the
- * device. The format version stays 1 forever: the shape object is optional
- * and additive, so an OLDER Onyx still decodes a NEW code (it ignores the
- * unknown key and falls back to the default shape), and this decoder
- * accepts old codes without a shape at all. Decoding is defensive: the
+ * device. The format version stays 1 forever: both objects are optional and
+ * additive, so an OLDER Onyx still decodes a NEW code (it ignores the
+ * unknown keys and falls back to its own defaults), and this decoder
+ * accepts old codes without them at all. Decoding is defensive: the
  * prefix may appear anywhere in the pasted text, unknown/garbled payloads
- * yield null, names are capped and colors are masked to 32 bits before
- * anything touches Room.
+ * yield null, names are capped, colors are masked to 32 bits and feedback
+ * ids are re-validated through the profile registries before anything
+ * touches Room.
  */
 object OnyxThemeCodec {
 
@@ -49,6 +51,10 @@ object OnyxThemeCodec {
             put("shape", JSONObject().apply {
                 put("r", theme.keyRadius.coerceIn(RADIUS_RANGE.first, RADIUS_RANGE.last))
                 put("s", theme.spaceLabel.coerceIn(SPACE_STYLES.first, SPACE_STYLES.last))
+            })
+            put("feedback", JSONObject().apply {
+                put("snd", KeySoundProfile.from(theme.soundProfile).id)
+                put("vib", KeyVibeProfile.from(theme.vibeProfile).id)
             })
         }
         val bytes = json.toString().toByteArray(Charsets.UTF_8)
@@ -78,6 +84,12 @@ object OnyxThemeCodec {
         val spaceStyle = shape?.optInt("s", DEFAULT_SPACE_STYLE)
             ?.coerceIn(SPACE_STYLES.first, SPACE_STYLES.last) ?: DEFAULT_SPACE_STYLE
 
+        // Additive feedback block: unknown ids (and legacy codes without the
+        // block) fall back to the classic system sound + default vibration.
+        val feedback = json.optJSONObject("feedback")
+        val soundId = KeySoundProfile.from(feedback?.optString("snd")).id
+        val vibeId = KeyVibeProfile.from(feedback?.optString("vib")).id
+
         ThemeEntity(
             id = 0,
             name = json.optString("name").trim().take(MAX_NAME).ifBlank { "Onyx" },
@@ -92,6 +104,8 @@ object OnyxThemeCodec {
             bgUri = "",
             keyRadius = radius,
             spaceLabel = spaceStyle,
+            soundProfile = soundId,
+            vibeProfile = vibeId,
         )
     }.getOrNull()
 

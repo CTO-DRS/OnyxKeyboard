@@ -25,7 +25,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
     // themes, learned words are NOT wiped).
     // v4: added themes.keyRadius + themes.spaceLabel (key/space shape
     // settings edited in the theme editor and carried by share codes).
-    version = 4,
+    // v5: added themes.soundProfile + themes.vibeProfile (per-theme key
+    // tap sound + vibration, edited in the theme editor and carried by
+    // share codes).
+    version = 5,
     exportSchema = false
 )
 abstract class OnyxDatabase : RoomDatabase() {
@@ -58,6 +61,14 @@ abstract class OnyxDatabase : RoomDatabase() {
             }
         }
 
+        /** v4 → v5: themes gained the per-theme sound/vibration profiles. */
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE themes ADD COLUMN soundProfile TEXT NOT NULL DEFAULT 'system'")
+                db.execSQL("ALTER TABLE themes ADD COLUMN vibeProfile TEXT NOT NULL DEFAULT 'default'")
+            }
+        }
+
         fun get(context: Context): OnyxDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
@@ -65,7 +76,7 @@ abstract class OnyxDatabase : RoomDatabase() {
                     OnyxDatabase::class.java,
                     "onyx.db"
                 )
-                    .addMigrations(MIGRATION_2_3, MIGRATION_3_4)
+                    .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                     .fallbackToDestructiveMigration()
                     .build()
                     .also { instance = it }
