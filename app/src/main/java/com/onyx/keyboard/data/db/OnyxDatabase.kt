@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [
@@ -17,8 +19,11 @@ import androidx.room.RoomDatabase
         BigramEntity::class,
     ],
     // v2: added the "bigrams" table (learned word pairs for next-word
-    // prediction). fallbackToDestructiveMigration handles the upgrade.
-    version = 2,
+    // prediction). fallbackToDestructiveMigration handles anything older.
+    // v3: added themes.bgUri (custom background photo path) — proper
+    // migration so users upgrading from v2 keep every row (clips, custom
+    // themes, learned words are NOT wiped).
+    version = 3,
     exportSchema = false
 )
 abstract class OnyxDatabase : RoomDatabase() {
@@ -36,6 +41,13 @@ abstract class OnyxDatabase : RoomDatabase() {
         @Volatile
         private var instance: OnyxDatabase? = null
 
+        /** v2 → v3: themes gained the optional bgUri column. */
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE themes ADD COLUMN bgUri TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
         fun get(context: Context): OnyxDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
@@ -43,6 +55,7 @@ abstract class OnyxDatabase : RoomDatabase() {
                     OnyxDatabase::class.java,
                     "onyx.db"
                 )
+                    .addMigrations(MIGRATION_2_3)
                     .fallbackToDestructiveMigration()
                     .build()
                     .also { instance = it }

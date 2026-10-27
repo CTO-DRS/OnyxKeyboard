@@ -1,5 +1,6 @@
 package com.onyx.keyboard.data.db
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
@@ -39,6 +40,13 @@ data class ThemeEntity(
     val glow: Long,
     val particle: Long,
     val builtin: Boolean = true,
+    /**
+     * Absolute path of an optional background photo (copied into the app's
+     * private storage at pick time — no external storage access at render).
+     * Empty = pure-gradient look. v3 schema; NOT part of shared theme codes.
+     */
+    @ColumnInfo(defaultValue = "")
+    val bgUri: String = "",
 )
 
 @Entity(

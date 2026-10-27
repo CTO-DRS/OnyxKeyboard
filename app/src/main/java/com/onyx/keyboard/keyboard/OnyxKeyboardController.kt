@@ -3,6 +3,7 @@ package com.onyx.keyboard.keyboard
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.media.AudioManager
 import android.os.Build
 import android.os.VibrationEffect
@@ -11,6 +12,8 @@ import android.os.VibratorManager
 import android.view.inputmethod.ExtractedTextRequest
 import android.view.inputmethod.InputConnection
 import androidx.compose.ui.graphics.Color
+import androidx.core.content.FileProvider
+import com.onyx.keyboard.ThemeImagePickerActivity
 import com.onyx.keyboard.data.db.ClipEntity
 import com.onyx.keyboard.data.db.ProfileEntity
 import com.onyx.keyboard.data.db.ThemeEntity
@@ -23,6 +26,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 import kotlin.random.Random
 
 enum class KeyboardPage { LETTERS, SYMBOLS, NUMPAD, EMOJI, CLIPBOARD, TRANSLATE, GIF, SETTINGS, THEMES, THEME_EDITOR, VOICE }
@@ -117,6 +121,8 @@ data class OnyxColors(
     val accent: Color,
     val glow: Color,
     val particle: Color,
+    /** Absolute path of an optional background photo; empty = pure gradient. */
+    val bgUri: String = "",
 )
 
 fun ThemeEntity.toOnyxColors(): OnyxColors = OnyxColors(
@@ -129,6 +135,7 @@ fun ThemeEntity.toOnyxColors(): OnyxColors = OnyxColors(
     accent = Color(accent),
     glow = Color(glow),
     particle = Color(particle),
+    bgUri = bgUri,
 )
 
 /**
@@ -978,10 +985,14 @@ class OnyxKeyboardController(
         haptic()
         val draft = seed?.copy()
             ?: (userTheme.value ?: defaultTheme()).copy(id = 0, name = suggestedName)
+        editingOriginalBg = seed?.bgUri.orEmpty()
         editingTheme.value = draft
         internalCapture.value = draft.name
         page.value = KeyboardPage.THEME_EDITOR
     }
+
+    /** Saved row's photo when editing — reclaimed if the save replaces it. */
+    private var editingOriginalBg: String = ""
 
     /** Live palette mutation from the editor's swatches / shuffle. */
     fun updateEditingTheme(transform: (ThemeEntity) -> ThemeEntity) {
@@ -1004,11 +1015,20 @@ class OnyxKeyboardController(
         val draft = editingTheme.value ?: return
         val typed = internalCapture.value?.trim().orEmpty()
         val name = typed.ifEmpty { draft.name.ifBlank { "Onyx" } }
+        val wasEdit = draft.id != 0L
         scope.launch {
             val id = runCatching { repo.saveCustomTheme(draft.copy(name = name)) }
                 .getOrDefault(-1L)
             if (id > 0) {
                 runCatching { repo.applyTheme(id) }
+                // Reclaim the photo this edit replaced (draft now points at
+                // the new pick; the old file belongs to nothing anymore).
+                if (wasEdit && editingOriginalBg.isNotEmpty() &&
+                    editingOriginalBg != draft.bgUri
+                ) {
+                    runCatching { File(editingOriginalBg).delete() }
+                }
+                editingOriginalBg = ""
                 editingTheme.value = null
                 internalCapture.value = null
                 page.value = KeyboardPage.THEMES
@@ -1034,6 +1054,7 @@ class OnyxKeyboardController(
         val draft = editingTheme.value ?: return
         if (draft.id == 0L || draft.builtin) return
         val victimId = draft.id
+        val bgPath = draft.bgUri
         haptic()
         scope.launch {
             runCatching {
@@ -1041,6 +1062,10 @@ class OnyxKeyboardController(
                 if (removed && userTheme.value?.id == victimId) repo.applyTheme(1L)
             }
         }
+        // The photo lives in app-private storage and is referenced by this
+        // row alone — safe to reclaim once the row is going away.
+        if (bgPath.isNotEmpty()) runCatching { File(bgPath).delete() }
+        editingOriginalBg = ""
         editingTheme.value = null
         internalCapture.value = null
         page.value = KeyboardPage.THEMES
@@ -1060,6 +1085,101 @@ class OnyxKeyboardController(
             internalCapture.value = buf.substring(0, buf.offsetByCodePoints(buf.length, -1))
         }
         return true
+    }
+
+    // ------------------------------------------------- theme share / import
+
+    /**
+     * Packs the current draft into a shareable ONYX1. code, drops it on the
+     * system clipboard (it also lands in Onyx's own encrypted clip history
+     * via the watcher), writes a .onyx-theme file and hands it to the Android
+     * share sheet. The clipboard copy is the guaranteed path; the sheet is
+     * best-effort (some launchers restrict IME-originated activity starts).
+     */
+    fun exportEditingTheme() {
+        val draft = editingTheme.value ?: return
+        haptic()
+        val code = OnyxThemeCodec.encode(draft)
+
+        runCatching {
+            clipboard?.setPrimaryClip(ClipData.newPlainText("onyx-theme", code))
+        }
+
+        runCatching {
+            val dir = File(context.cacheDir, "shared").apply { mkdirs() }
+            val safe = draft.name.trim().ifBlank { "onyx-theme" }
+                .replace(Regex("[^A-Za-z0-9\\u0600-\\u06FF_-]"), "_")
+                .take(30)
+            val file = File(dir, "$safe.onyx-theme").apply { writeText(code) }
+            val uri = FileProvider.getUriForFile(
+                context, context.packageName + ".fileprovider", file
+            )
+            val send = Intent(Intent.ACTION_SEND).apply {
+                type = "application/octet-stream"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                putExtra(Intent.EXTRA_SUBJECT, draft.name.ifBlank { "Onyx theme" })
+                putExtra(Intent.EXTRA_TEXT, code)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            context.startActivity(
+                Intent.createChooser(send, null)
+                    .addFlags(
+                        Intent.FLAG_ACTIVITY_NEW_TASK or
+                            Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    )
+            )
+        }
+    }
+
+    /**
+     * One-tap import: decodes an ONYX1. theme code found on the system
+     * clipboard and saves + applies it. Returns false when the clipboard
+     * holds no valid code (panel shows a hint; nothing is written).
+     */
+    fun importFromClipboard(): Boolean {
+        haptic()
+        val text = runCatching {
+            clipboard?.primaryClip?.getItemAt(0)?.text?.toString()
+        }.getOrNull() ?: return false
+        val theme = OnyxThemeCodec.decode(text) ?: return false
+        scope.launch {
+            val id = runCatching { repo.saveCustomTheme(theme) }.getOrDefault(-1L)
+            if (id > 0) runCatching { repo.applyTheme(id) }
+        }
+        return true
+    }
+
+    /** Launches the transparent picker; result lands via [onBackgroundPicked]. */
+    fun requestBackgroundImage() {
+        haptic()
+        runCatching {
+            context.startActivity(
+                Intent(context, ThemeImagePickerActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+        }
+    }
+
+    /** Drops the draft's background photo (file + reference). */
+    fun removeBackgroundImage() {
+        val draft = editingTheme.value ?: return
+        val old = draft.bgUri
+        haptic()
+        updateEditingTheme { it.copy(bgUri = "") }
+        // Only reclaim when nothing else can reference it: a brand-new draft
+        // owns its pick; an edit may share the file with the SAVED row until
+        // the save replaces it (handled in [saveEditingTheme]).
+        if (old.isNotEmpty() && draft.id == 0L) runCatching { File(old).delete() }
+    }
+
+    /** Called by the service when the picker activity stored a result. */
+    fun onBackgroundPicked(raw: String) {
+        if (raw.isBlank()) return
+        val path = raw.removePrefix("file:")
+        updateEditingTheme { it.copy(bgUri = path) }
+        scope.launch {
+            runCatching { repo.putSetting(OnyxRepository.KEY_PENDING_BG_PICK, "") }
+        }
     }
 
     fun switchProfile(profileId: Long) {

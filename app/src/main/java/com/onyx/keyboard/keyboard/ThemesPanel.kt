@@ -21,12 +21,17 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -39,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.onyx.keyboard.R
 import com.onyx.keyboard.data.db.ThemeEntity
+import kotlinx.coroutines.delay
 
 /**
  * DEDICATED THEMES PANEL — the in-keyboard upgrade of the theme section.
@@ -57,11 +63,58 @@ fun ThemesPanel(controller: OnyxKeyboardController) {
 
     val createLabel = stringResource(R.string.themes_create)
     val myThemePrefix = stringResource(R.string.editor_my_theme)
+    val importLabel = stringResource(R.string.themes_import)
+    val badCodeLabel = stringResource(R.string.themes_import_bad_code)
     val custom = themes.filter { !it.builtin }
     val builtin = themes.filter { it.builtin }
 
+    // Clipboard import feedback — flashes when the paste holds no valid code.
+    var importError by remember { mutableStateOf(false) }
+    LaunchedEffect(importError) {
+        if (importError) {
+            delay(2600)
+            importError = false
+        }
+    }
+
     Column(Modifier.fillMaxWidth().height(286.dp)) {
         PanelHeader(controller, stringResource(R.string.panel_themes))
+
+        // Import row — one tap turns an ONYX1. code on the clipboard into a
+        // new, immediately-applied custom theme.
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp, vertical = 1.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (importError) {
+                Text(
+                    text = badCodeLabel,
+                    color = theme.glow,
+                    fontSize = 10.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+            } else {
+                Spacer(Modifier.weight(1f))
+            }
+            Text(
+                text = importLabel,
+                color = theme.accent,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(theme.accent.copy(alpha = 0.14f))
+                    .clickable {
+                        controller.haptic()
+                        if (!controller.importFromClipboard()) importError = true
+                    }
+                    .padding(horizontal = 10.dp, vertical = 4.dp)
+            )
+        }
 
         LazyVerticalGrid(
             columns = GridCells.Fixed(3),
@@ -199,6 +252,17 @@ private fun MiniThemeCard(
                         .clip(CircleShape)
                         .clickable { onEdit() }
                         .padding(1.dp)
+                )
+            }
+            if (theme.bgUri.isNotEmpty()) {
+                // Background-photo badge — this look carries a picture.
+                Icon(
+                    imageVector = Icons.Filled.Image,
+                    contentDescription = stringResource(R.string.editor_bg_image),
+                    tint = Color(theme.accent).copy(alpha = 0.9f),
+                    modifier = Modifier
+                        .size(11.dp)
+                        .padding(start = 2.dp)
                 )
             }
             Icon(

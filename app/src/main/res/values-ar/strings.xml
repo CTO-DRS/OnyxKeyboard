@@ -57,6 +57,12 @@
     <string name="editor_role_accent">اللون المميز</string>
     <string name="editor_role_glow">التوهج</string>
     <string name="editor_role_particles">الجزيئات</string>
+    <string name="editor_bg_image">صورة الخلفية</string>
+    <string name="editor_pick_image">اختيار</string>
+    <string name="editor_remove_image">إزالة</string>
+    <string name="editor_share">مشاركة</string>
+    <string name="themes_import">استيراد</string>
+    <string name="themes_import_bad_code">لا يوجد رمز قالب صالح في الحافظة</string>
 
     <!-- Profiles screen -->
     <string name="add_profile">ملف جديد</string>

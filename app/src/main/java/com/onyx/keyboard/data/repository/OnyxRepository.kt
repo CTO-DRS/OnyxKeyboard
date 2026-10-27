@@ -64,6 +64,8 @@ class OnyxRepository private constructor(context: Context) {
         const val MAX_CLIPS = 30
         /** Upper bound on user-created themes — keeps the gallery sane. */
         const val MAX_CUSTOM_THEMES = 30
+        /** Pending background-photo hand-off from the picker trampoline. */
+        const val KEY_PENDING_BG_PICK = "pending_bg_pick"
 
         @Volatile
         private var instance: OnyxRepository? = null

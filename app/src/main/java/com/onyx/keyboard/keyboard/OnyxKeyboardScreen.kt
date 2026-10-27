@@ -9,6 +9,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -42,6 +43,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -54,7 +56,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.LayoutCoordinates
@@ -66,6 +70,9 @@ import androidx.compose.ui.unit.sp
 import com.onyx.keyboard.intelligence.ArabicLexicon
 import com.onyx.keyboard.intelligence.EnglishLexicon
 import com.onyx.keyboard.ui.components.ParticleField
+import android.graphics.BitmapFactory
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlin.math.abs
 
 /**
@@ -88,6 +95,47 @@ fun OnyxKeyboardScreen(controller: OnyxKeyboardController) {
                 Brush.verticalGradient(listOf(theme.surfaceTop, theme.surfaceBottom))
             )
     ) {
+        // Custom background photo (user themes) — decoded once per path on a
+        // background dispatcher, downscaled to a sane pixel budget. A gradient
+        // scrim on top keeps the palette (and every key label) readable — the
+        // photo is atmosphere, never contrast.
+        val bgPath = theme.bgUri
+        if (bgPath.isNotEmpty()) {
+            val bgBitmap by produceState<android.graphics.Bitmap?>(null, bgPath) {
+                value = withContext(Dispatchers.IO) {
+                    runCatching {
+                        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                        BitmapFactory.decodeFile(bgPath, bounds)
+                        var sample = 1
+                        while (bounds.outWidth / (sample * 2) >= 1080) sample *= 2
+                        BitmapFactory.decodeFile(
+                            bgPath,
+                            BitmapFactory.Options().apply { inSampleSize = sample }
+                        )
+                    }.getOrNull()
+                }
+            }
+            bgBitmap?.let { bmp ->
+                Image(
+                    bitmap = bmp.asImageBitmap(),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.matchParentSize()
+                )
+                Box(
+                    Modifier
+                        .matchParentSize()
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(
+                                    theme.surfaceTop.copy(alpha = 0.72f),
+                                    theme.surfaceBottom.copy(alpha = 0.88f)
+                                )
+                            )
+                        )
+                )
+            }
+        }
         if (controller.particles.collectAsState().value &&
             !controller.powerSave.collectAsState().value
         ) {

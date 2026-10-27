@@ -31,6 +31,8 @@ import androidx.compose.material.icons.filled.Casino
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.SpaceBar
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -92,6 +94,10 @@ fun ThemeEditorPanel(controller: OnyxKeyboardController) {
     val deleteLabel = stringResource(R.string.editor_delete)
     val deleteConfirmLabel = stringResource(R.string.editor_delete_confirm)
     val shuffleLabel = stringResource(R.string.editor_shuffle)
+    val shareLabel = stringResource(R.string.editor_share)
+    val bgLabel = stringResource(R.string.editor_bg_image)
+    val pickLabel = stringResource(R.string.editor_pick_image)
+    val removeLabel = stringResource(R.string.editor_remove_image)
     val roles = listOf(
         EditorColorRole(
             stringResource(R.string.editor_role_surface),
@@ -149,6 +155,16 @@ fun ThemeEditorPanel(controller: OnyxKeyboardController) {
                 modifier = Modifier
                     .weight(1f)
                     .padding(start = 6.dp)
+            )
+            Icon(
+                imageVector = Icons.Filled.Share,
+                contentDescription = shareLabel,
+                tint = theme.accent,
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .clickable { controller.exportEditingTheme() }
+                    .padding(4.dp)
+                    .size(17.dp)
             )
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -223,6 +239,54 @@ fun ThemeEditorPanel(controller: OnyxKeyboardController) {
                     onPick = { c -> controller.updateEditingTheme { role.set(it, c) } }
                 )
                 Spacer(Modifier.height(4.dp))
+            }
+
+            // Optional background photo — picked through the transparent
+            // trampoline; the file never leaves the device on export.
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = bgLabel,
+                    color = theme.keyText.copy(alpha = 0.7f),
+                    fontSize = 10.sp,
+                    maxLines = 1,
+                    modifier = Modifier.width(78.dp)
+                )
+                Text(
+                    text = pickLabel,
+                    color = theme.accent,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color.White.copy(alpha = 0.07f))
+                        .clickable { controller.requestBackgroundImage() }
+                        .padding(horizontal = 9.dp, vertical = 4.dp)
+                )
+                if (d.bgUri.isNotEmpty()) {
+                    Spacer(Modifier.width(6.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color.White.copy(alpha = 0.07f))
+                            .clickable { controller.removeBackgroundImage() }
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Image,
+                            contentDescription = removeLabel,
+                            tint = theme.glow,
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Text(
+                            text = removeLabel,
+                            color = theme.glow,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.padding(start = 3.dp)
+                        )
+                    }
+                }
             }
             Spacer(Modifier.height(2.dp))
         }

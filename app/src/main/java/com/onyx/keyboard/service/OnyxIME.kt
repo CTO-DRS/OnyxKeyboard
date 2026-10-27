@@ -172,6 +172,12 @@ class OnyxIME : InputMethodService() {
                     if (it != "true") controller.quickClip.value = null
                 }
         }
+        scope.launch {
+            // Hand-off from the background-image picker trampoline; empty
+            // values (cancels / our own reset) are ignored by the controller.
+            repo.observeSetting(OnyxRepository.KEY_PENDING_BG_PICK, "")
+                .collectLatest { controller.onBackgroundPicked(it) }
+        }
     }
 
     /**

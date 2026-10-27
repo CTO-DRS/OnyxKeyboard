@@ -59,6 +59,12 @@
     <string name="editor_role_accent">Accent</string>
     <string name="editor_role_glow">Glow</string>
     <string name="editor_role_particles">Particles</string>
+    <string name="editor_bg_image">Background image</string>
+    <string name="editor_pick_image">Choose</string>
+    <string name="editor_remove_image">Remove</string>
+    <string name="editor_share">Share</string>
+    <string name="themes_import">Import</string>
+    <string name="themes_import_bad_code">No valid theme code in clipboard</string>
 
     <!-- Profiles screen -->
     <string name="add_profile">New profile</string>

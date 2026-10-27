@@ -26,6 +26,13 @@
             </intent-filter>
         </activity>
 
+        <!-- Invisible trampoline: IME → system image picker → settings hand-off. -->
+        <activity
+            android:name=".ThemeImagePickerActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
         <service
             android:name=".service.OnyxIME"
             android:exported="true"

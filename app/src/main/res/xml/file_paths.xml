@@ -3,4 +3,8 @@
     <cache-path
         name="gifs"
         path="gifs/" />
+    <!-- Exported .onyx-theme share files -->
+    <cache-path
+        name="shared"
+        path="shared/" />
 </paths>
