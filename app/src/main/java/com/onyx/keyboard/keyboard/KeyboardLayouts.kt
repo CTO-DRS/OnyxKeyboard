@@ -74,6 +74,16 @@ object KeyboardLayouts {
         else -> label
     }
 
+    /**
+     * The un-shifted physical letter grid for [lang] — exposed so the glide
+     * matcher can derive key adjacency (the "letter chain" geometry) from
+     * the ONE source of truth instead of a hand-copied map.
+     */
+    fun baseLetterRows(lang: Lang): List<List<String>> = when (lang) {
+        Lang.AR -> arabicRows
+        Lang.EN -> englishRows
+    }
+
     fun letterRows(lang: Lang, shift: ShiftState): List<List<String>> = when (lang) {
         Lang.AR -> if (shift == ShiftState.OFF) arabicRows else arabicAltRows
         Lang.EN -> if (shift == ShiftState.OFF) englishRows else {

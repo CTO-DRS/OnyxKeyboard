@@ -20,6 +20,7 @@ import com.onyx.keyboard.ui.components.ParticleField
 import com.onyx.keyboard.ui.screens.AboutScreen
 import com.onyx.keyboard.ui.screens.PrivacyScreen
 import com.onyx.keyboard.ui.screens.ProfilesScreen
+import com.onyx.keyboard.ui.screens.StatsScreen
 import com.onyx.keyboard.ui.screens.ThemesScreen
 import com.onyx.keyboard.ui.dashboard.DashboardScreen
 
@@ -65,6 +66,7 @@ fun OnyxRoot() {
                 DashboardScreen(
                     onOpenThemes = { navController.navigate("themes") },
                     onOpenProfiles = { navController.navigate("profiles") },
+                    onOpenStats = { navController.navigate("stats") },
                     onOpenPrivacy = { navController.navigate("privacy") },
                     onOpenAbout = { navController.navigate("about") }
                 )
@@ -77,6 +79,9 @@ fun OnyxRoot() {
             }
             composable("privacy") {
                 PrivacyScreen(onBack = { navController.popBackStack() })
+            }
+            composable("stats") {
+                StatsScreen(onBack = { navController.popBackStack() })
             }
             composable("about") {
                 AboutScreen(onBack = { navController.popBackStack() })

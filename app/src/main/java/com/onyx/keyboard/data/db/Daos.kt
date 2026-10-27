@@ -157,8 +157,14 @@ interface ClipDao {
 
 @Dao
 interface StatsDao {
-    @Query("INSERT OR IGNORE INTO daily_stats (`day`) VALUES (:day)")
-    suspend fun ensureRow(day: String)
+    /**
+     * Ensures a zeroed row exists for [e.day]. Room's @Insert fills the
+     * Kotlin defaults (0) for every omitted column — a raw
+     * `INSERT OR IGNORE (day)` would silently violate the generated NOT
+     * NULL constraints (no SQL DEFAULTs on this table) and record nothing.
+     */
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun ensureRow(e: DailyStatsEntity)
 
     @Query("UPDATE daily_stats SET keystrokes = keystrokes + :n WHERE `day` = :day")
     suspend fun addKeystrokes(day: String, n: Long)
@@ -186,6 +192,10 @@ interface StatsDao {
             "COALESCE(SUM(words), 0) AS words FROM daily_stats"
     )
     suspend fun totals(): Totals
+
+    /** Full wipe — sandbox order-independence for the test suite. */
+    @Query("DELETE FROM daily_stats")
+    suspend fun wipe()
 }
 
 @Dao

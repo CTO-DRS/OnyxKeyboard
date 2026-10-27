@@ -82,6 +82,23 @@
     <string name="vibe_normal">عادي</string>
     <string name="vibe_strong">قوي</string>
     <string name="vibe_double">نبضتان</string>
+    <string name="stats_week_title">النشاط الأسبوعي</string>
+    <string name="stats_week_desc">آخر ٧ أيام من استخدامك — يُحسب على جهازك</string>
+    <string name="stats_metric_keystrokes">ضربات</string>
+    <string name="stats_metric_words">كلمات</string>
+    <string name="stats_metric_emoji">إيموجي</string>
+    <string name="stats_metric_voice">صوت</string>
+    <string name="stats_metric_gifs">GIF</string>
+    <string name="stats_card_total">إجمالي الأسبوع</string>
+    <string name="stats_card_avg">المتوسط اليومي</string>
+    <string name="stats_card_best">أفضل يوم</string>
+    <string name="stats_card_streak">سلسلة النشاط</string>
+    <string name="stats_days_unit">يوم</string>
+    <string name="stats_today">اليوم</string>
+    <string name="stats_empty">لا نشاط بعد هذا الأسبوع — ابدأ الكتابة وستتوهج الأعمدة هنا</string>
+    <string name="stats_privacy_note">الإحصائيات تُحفظ على جهازك فقط ولا تُرسل إلى أي مكان</string>
+    <string name="dashboard_open_stats">الإحصائيات</string>
+    <string name="dashboard_stats_desc">مخطط أسبوعي لضرباتك وكلماتك وإيموجيك</string>
     <string name="themes_import">استيراد</string>
     <string name="themes_import_bad_code">لا يوجد رمز قالب صالح في الحافظة</string>
 

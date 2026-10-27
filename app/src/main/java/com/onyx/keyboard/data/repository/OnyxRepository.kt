@@ -39,7 +39,7 @@ class OnyxRepository private constructor(context: Context) {
     private val shortcutDao: ShortcutDao = db.shortcutDao()
     private val clipDao: ClipDao = db.clipDao()
     private val bigramDao: BigramDao = db.bigramDao()
-    private val statsDao = db.statsDao()
+    internal val statsDao = db.statsDao()  // internal: the weekly-stats screen + tests seed historical days directly
     val settings: SettingsDao = db.settingsDao()
 
     /** Same-module access (tests + future admin UI) to verify theme seeding. */
@@ -287,23 +287,23 @@ class OnyxRepository private constructor(context: Context) {
     suspend fun totals(): Totals = statsDao.totals()
 
     suspend fun bumpKeystrokes(n: Long = 1) {
-        statsDao.ensureRow(today()); statsDao.addKeystrokes(today(), n)
+        statsDao.ensureRow(DailyStatsEntity(today())); statsDao.addKeystrokes(today(), n)
     }
 
     suspend fun bumpWords(n: Long = 1) {
-        statsDao.ensureRow(today()); statsDao.addWords(today(), n)
+        statsDao.ensureRow(DailyStatsEntity(today())); statsDao.addWords(today(), n)
     }
 
     suspend fun bumpEmojis(n: Long = 1) {
-        statsDao.ensureRow(today()); statsDao.addEmojis(today(), n)
+        statsDao.ensureRow(DailyStatsEntity(today())); statsDao.addEmojis(today(), n)
     }
 
     suspend fun bumpVoice(n: Long = 1) {
-        statsDao.ensureRow(today()); statsDao.addVoice(today(), n)
+        statsDao.ensureRow(DailyStatsEntity(today())); statsDao.addVoice(today(), n)
     }
 
     suspend fun bumpGifs(n: Long = 1) {
-        statsDao.ensureRow(today()); statsDao.addGifs(today(), n)
+        statsDao.ensureRow(DailyStatsEntity(today())); statsDao.addGifs(today(), n)
     }
 
     private fun today(): String = LocalDate.now().toString()

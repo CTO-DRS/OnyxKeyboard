@@ -28,6 +28,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
@@ -66,6 +67,7 @@ import com.onyx.keyboard.ui.theme.OnyxPurple
 fun DashboardScreen(
     onOpenThemes: () -> Unit,
     onOpenProfiles: () -> Unit,
+    onOpenStats: () -> Unit,
     onOpenPrivacy: () -> Unit,
     onOpenAbout: () -> Unit,
     vm: DashboardViewModel = viewModel(),
@@ -253,6 +255,15 @@ fun DashboardScreen(
             ExploreCard(stringResource(R.string.about_title), stringResource(R.string.about_desc),
                 Icons.Filled.Info, Modifier.weight(1f), onOpenAbout)
         }
+        Spacer(Modifier.height(10.dp))
+        // Weekly usage stats — full-width card closing the explore grid.
+        ExploreCard(
+            stringResource(R.string.dashboard_open_stats),
+            stringResource(R.string.dashboard_stats_desc),
+            Icons.Filled.BarChart,
+            Modifier.fillMaxWidth(),
+            onOpenStats
+        )
 
         Spacer(Modifier.height(18.dp))
 

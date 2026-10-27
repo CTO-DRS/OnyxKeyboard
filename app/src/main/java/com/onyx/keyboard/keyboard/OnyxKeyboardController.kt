@@ -275,6 +275,14 @@ class OnyxKeyboardController(
     /** The word currently committed by a glide (used to replace it on pick). */
     private var glideCommitted: String? = null
 
+    /**
+     * The LIVE letter chain the finger has traced so far during an active
+     * glide (e.g. "هلا"). Drives the glowing chain strip that replaces the
+     * toolbar mid-gesture, so the user sees exactly what they swept. Empty
+     * between gestures.
+     */
+    val glideChain = MutableStateFlow("")
+
     val voiceActive = MutableStateFlow(false)
     val voiceText = MutableStateFlow("")
     val voiceError = MutableStateFlow<String?>(null)
@@ -851,6 +859,15 @@ class OnyxKeyboardController(
     // ------------------------------------------------------------- glide typing
 
     /**
+     * Extends the live letter chain mid-gesture (called on glide start and
+     * on every NEW key the finger crosses into). The chain strip renders
+     * exactly this string, so what glows on screen is what was swept.
+     */
+    fun pushGlideChain(trace: String) {
+        glideChain.value = trace
+    }
+
+    /**
      * Commits the best word of a finished swipe gesture and offers the
      * remaining candidates in the strip. The first candidate is committed
      * immediately (standard gesture-typing behaviour); picking another one
@@ -903,10 +920,22 @@ class OnyxKeyboardController(
         lastCommitWasSpace = false
     }
 
+    /**
+     * Ends a glide gesture: the live chain strip always goes away, and a
+     * non-empty candidate list is handed to [onGlideWord] (commit + strip).
+     * Called for EVERY finished gesture — including swipes that matched
+     * nothing — so the strip can never get stuck on screen.
+     */
+    fun endGlide(candidates: List<String>) {
+        glideChain.value = ""
+        if (candidates.isNotEmpty()) onGlideWord(candidates)
+    }
+
     /** Hides the glide strip; called by every plain key action and reset. */
     fun clearGlide() {
         glideCandidates.value = emptyList()
         glideCommitted = null
+        glideChain.value = ""
     }
 
     // ------------------------------------------------------------- clipboard

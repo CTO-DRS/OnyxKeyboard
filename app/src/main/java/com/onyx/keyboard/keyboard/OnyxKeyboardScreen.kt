@@ -66,7 +66,10 @@ import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.onyx.keyboard.R
@@ -88,6 +91,7 @@ fun OnyxKeyboardScreen(controller: OnyxKeyboardController) {
     val page by controller.page.collectAsState()
     val altReq by controller.altPopup.collectAsState()
     val glideCands by controller.glideCandidates.collectAsState()
+    val glideChain by controller.glideChain.collectAsState()
     val suggestions by controller.suggestions.collectAsState()
     val buffer by controller.buffer.collectAsState()
 
@@ -175,6 +179,11 @@ fun OnyxKeyboardScreen(controller: OnyxKeyboardController) {
                     onPick = { controller.onAltChar(it) },
                     onDismiss = { controller.closeAltPopup() }
                 )
+            } else if (glideChain.isNotEmpty()) {
+                // MID-GLIDE letter chain — the live glowing trace of the keys
+                // the finger has crossed, replacing the toolbar in place so
+                // the keyboard never resizes during the gesture.
+                GlideChainStrip(chain = glideChain, controller = controller)
             } else if (glideCands.isNotEmpty()) {
                 // Post-glide word alternatives — first entry (the committed
                 // word) is highlighted; tapping another swaps it in place.
@@ -288,25 +297,41 @@ private fun LettersPage(controller: OnyxKeyboardController) {
                         total += (pos - last).getDistance()
                         last = pos
                         if (!gliding) {
-                            if (total > slop) gliding = true else continue
+                            if (total > slop) {
+                                // The gesture just became a glide — light the
+                                // chain strip with everything traced so far.
+                                gliding = true
+                                controller.pushGlideChain(path.toString())
+                            } else continue
                         }
                         if (change.positionChanged()) change.consume()
                         val hit = hitAt(pos)
                         if (hit != null && hit != lastKey) {
                             path.append(hit)
                             lastKey = hit
+                            controller.pushGlideChain(path.toString())
                         }
                         if (trace.size < 260) trace.add(pos)
                     }
 
                     if (gliding) {
                         val word = path.toString()
-                        if (word.length >= 2) {
+                        val cands = if (word.length >= 2) {
                             val lexicon = if (lang == Lang.AR) ArabicLexicon.words
                                           else EnglishLexicon.words
-                            val cands = GlideMatcher.candidates(word, lexicon)
-                            if (cands.isNotEmpty()) controller.onGlideWord(cands)
+                            // LETTER-CHAIN matching: grid-aware distance so a
+                            // finger drifting onto an adjacent key still lands
+                            // on the intended word.
+                            val neighbors = if (lang == Lang.AR) GlideMatcher.AR_NEIGHBORS
+                                            else GlideMatcher.EN_NEIGHBORS
+                            GlideMatcher.candidates(word, lexicon, neighbors = neighbors)
+                        } else {
+                            emptyList()
                         }
+                        // ALWAYS settle the gesture (chain strip goes away,
+                        // candidates show when there are any) — even when the
+                        // sweep matched nothing.
+                        controller.endGlide(cands)
                     }
                     trace.clear()
                 }
@@ -692,6 +717,51 @@ private fun RowScope.SpaceWithCursorSlide(
                 )
             }
         }
+    }
+}
+
+/**
+ * The LIVE letter-chain strip, shown mid-glide in the toolbar's place (same
+ * 46dp height so the keyboard never resizes during the gesture). Renders the
+ * exact key sequence the finger has traced; every character glows softly and
+ * the newest one burns at full accent — typing with your finger and watching
+ * the trail write itself.
+ */
+@Composable
+private fun GlideChainStrip(
+    chain: String,
+    controller: OnyxKeyboardController,
+) {
+    val theme by controller.theme.collectAsState()
+    val annotated = buildAnnotatedString {
+        chain.forEachIndexed { i, ch ->
+            append(ch)
+            val newest = i == chain.lastIndex
+            addStyle(
+                SpanStyle(
+                    color = if (newest) theme.accent else theme.accent.copy(alpha = 0.45f),
+                    fontWeight = if (newest) FontWeight.Black else FontWeight.Bold,
+                ),
+                i, i + 1
+            )
+        }
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(46.dp)
+            .padding(horizontal = 6.dp, vertical = 4.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(theme.keyFill.copy(alpha = 0.35f)),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = annotated,
+            fontSize = 19.sp,
+            maxLines = 1,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
+        )
     }
 }
 

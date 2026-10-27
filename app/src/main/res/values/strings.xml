@@ -84,6 +84,23 @@
     <string name="vibe_normal">Normal</string>
     <string name="vibe_strong">Strong</string>
     <string name="vibe_double">Double pulse</string>
+    <string name="stats_week_title">Weekly activity</string>
+    <string name="stats_week_desc">Your last 7 days of use — computed on-device</string>
+    <string name="stats_metric_keystrokes">Taps</string>
+    <string name="stats_metric_words">Words</string>
+    <string name="stats_metric_emoji">Emoji</string>
+    <string name="stats_metric_voice">Voice</string>
+    <string name="stats_metric_gifs">GIFs</string>
+    <string name="stats_card_total">Week total</string>
+    <string name="stats_card_avg">Daily average</string>
+    <string name="stats_card_best">Best day</string>
+    <string name="stats_card_streak">Active streak</string>
+    <string name="stats_days_unit">days</string>
+    <string name="stats_today">Today</string>
+    <string name="stats_empty">No activity this week yet — start typing and the bars will light up</string>
+    <string name="stats_privacy_note">Stats stay on this device and are never sent anywhere</string>
+    <string name="dashboard_open_stats">Statistics</string>
+    <string name="dashboard_stats_desc">Weekly chart of your taps, words and emoji</string>
     <string name="themes_import">Import</string>
     <string name="themes_import_bad_code">No valid theme code in clipboard</string>
 
