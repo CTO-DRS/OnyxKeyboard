@@ -20,6 +20,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -38,6 +39,14 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
+
+/**
+ * Per-theme key corner radius (dp) — provided by the IME surface from the
+ * active ThemeEntity so the editor's radius slider reshapes the WHOLE
+ * keyboard (letters, symbols, numpad, space bar) live. Every key falls
+ * back to the classic 14dp neon-glass look when nothing provides it.
+ */
+val LocalOnyxKeyRadius = staticCompositionLocalOf { 14 }
 
 /**
  * A single neon-glass key. Pressed state triggers: scale-down, glow bloom,
@@ -63,6 +72,7 @@ fun RowScope.KeyButton(
     height: Dp = 52.dp,
     fontSize: Int = 18,
     fontWeight: FontWeight = FontWeight.Medium,
+    radius: Dp = LocalOnyxKeyRadius.current.dp,
     onLongClick: (() -> Unit)? = null,
     onGeometry: ((Rect) -> Unit)? = null,
 ) {
@@ -83,13 +93,15 @@ fun RowScope.KeyButton(
                 if (a > 0.01f) {
                     drawRoundRect(
                         color = glow.copy(alpha = a),
-                        cornerRadius = CornerRadius(16.dp.toPx(), 16.dp.toPx()),
+                        cornerRadius = CornerRadius(
+                            (radius + 2.dp).toPx(), (radius + 2.dp).toPx()
+                        ),
                         style = Stroke(width = 16.dp.toPx() * 0.9f)
                     )
                 }
             }
             .scale(scale)
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(radius))
             .background(
                 Brush.verticalGradient(
                     listOf(
@@ -103,7 +115,7 @@ fun RowScope.KeyButton(
                 brush = Brush.linearGradient(
                     listOf(accent.copy(alpha = glowAlpha), glow.copy(alpha = glowAlpha * 0.6f))
                 ),
-                shape = RoundedCornerShape(14.dp)
+                shape = RoundedCornerShape(radius)
             )
             .combinedClickable(
                 interactionSource = interaction,
@@ -138,6 +150,7 @@ fun RowScope.KeyIcon(
     weight: Float = 1f,
     height: Dp = 52.dp,
     iconSize: Dp = 20.dp,
+    radius: Dp = LocalOnyxKeyRadius.current.dp,
     onLongClick: (() -> Unit)? = null,
     /**
      * If set, this action auto-repeats while the key is held down
@@ -170,13 +183,15 @@ fun RowScope.KeyIcon(
                 if (a > 0.01f) {
                     drawRoundRect(
                         color = glow.copy(alpha = a),
-                        cornerRadius = CornerRadius(16.dp.toPx(), 16.dp.toPx()),
+                        cornerRadius = CornerRadius(
+                            (radius + 2.dp).toPx(), (radius + 2.dp).toPx()
+                        ),
                         style = Stroke(width = 16.dp.toPx() * 0.9f)
                     )
                 }
             }
             .scale(scale)
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(radius))
             .background(
                 Brush.verticalGradient(
                     listOf(
@@ -190,7 +205,7 @@ fun RowScope.KeyIcon(
                 brush = Brush.linearGradient(
                     listOf(accent.copy(alpha = glowAlpha), glow.copy(alpha = glowAlpha * 0.6f))
                 ),
-                shape = RoundedCornerShape(14.dp)
+                shape = RoundedCornerShape(radius)
             )
             .combinedClickable(
                 interactionSource = interaction,

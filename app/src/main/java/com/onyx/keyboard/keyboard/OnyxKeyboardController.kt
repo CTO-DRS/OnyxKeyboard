@@ -13,6 +13,7 @@ import android.view.inputmethod.ExtractedTextRequest
 import android.view.inputmethod.InputConnection
 import androidx.compose.ui.graphics.Color
 import androidx.core.content.FileProvider
+import com.onyx.keyboard.R
 import com.onyx.keyboard.ThemeImagePickerActivity
 import com.onyx.keyboard.data.db.ClipEntity
 import com.onyx.keyboard.data.db.ProfileEntity
@@ -29,7 +30,10 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import kotlin.random.Random
 
-enum class KeyboardPage { LETTERS, SYMBOLS, NUMPAD, EMOJI, CLIPBOARD, TRANSLATE, GIF, SETTINGS, THEMES, THEME_EDITOR, VOICE }
+enum class KeyboardPage {
+    LETTERS, SYMBOLS, NUMPAD, EMOJI, CLIPBOARD, TRANSLATE, GIF, SETTINGS,
+    THEMES, THEME_EDITOR, THEME_ARCHIVE, VOICE
+}
 enum class Lang(val code: String) { AR("ar"), EN("en") }
 enum class ShiftState { OFF, ON, CAPS }
 
@@ -123,6 +127,10 @@ data class OnyxColors(
     val particle: Color,
     /** Absolute path of an optional background photo; empty = pure gradient. */
     val bgUri: String = "",
+    /** Corner radius of every key in dp (theme shape setting). */
+    val keyRadius: Int = 14,
+    /** Space-bar face: 0 = icon, 1 = the word, 2 = blank bar. */
+    val spaceLabel: Int = 0,
 )
 
 fun ThemeEntity.toOnyxColors(): OnyxColors = OnyxColors(
@@ -136,6 +144,8 @@ fun ThemeEntity.toOnyxColors(): OnyxColors = OnyxColors(
     glow = Color(glow),
     particle = Color(particle),
     bgUri = bgUri,
+    keyRadius = keyRadius,
+    spaceLabel = spaceLabel,
 )
 
 /**
@@ -199,6 +209,20 @@ class OnyxKeyboardController(
 
     /** The user's selected preset as streamed from Room (before auto-day/night resolution). */
     val userTheme = MutableStateFlow<ThemeEntity?>(null)
+
+    // ------------------------------------------------------------- community archive
+
+    /**
+     * The COMMUNITY THEME ARCHIVE: the built-in curated pack plus whatever
+     * the online catalog contributed (cached in the settings table, merged
+     * without duplicates). Rendered by the archive panel inside settings.
+     */
+    val community = MutableStateFlow<List<CommunityEntry>>(CommunityArchive.bundled())
+
+    /** Transient archive note (string res id) — offline / refreshed / full. */
+    val communityNote = MutableStateFlow<Int?>(null)
+
+    private var communitySessionLoaded = false
 
     // ------------------------------------------------------------- custom themes
 
@@ -1179,6 +1203,81 @@ class OnyxKeyboardController(
         updateEditingTheme { it.copy(bgUri = path) }
         scope.launch {
             runCatching { repo.putSetting(OnyxRepository.KEY_PENDING_BG_PICK, "") }
+        }
+    }
+
+    // ------------------------------------------------- community theme archive
+
+    /**
+     * Opens the archive page: hydrates from the cached catalog (last known
+     * online snapshot) on first visit and kicks a best-effort refresh.
+     */
+    fun openCommunityArchive() {
+        haptic()
+        page.value = KeyboardPage.THEME_ARCHIVE
+        if (communitySessionLoaded) return
+        communitySessionLoaded = true
+        scope.launch {
+            val cached = runCatching {
+                repo.setting(OnyxRepository.KEY_COMMUNITY_CACHE, "")
+            }.getOrDefault("")
+            if (cached.isNotBlank()) mergeCommunityCatalog(cached)
+        }
+        refreshCommunityArchive()
+    }
+
+    /**
+     * Manual refresh: fetches the shared catalog (repo-hosted JSON of ONYX1
+     * codes) on IO, merges it into the archive and caches the raw payload.
+     * Network failure keeps the built-in pack and shows a gentle note.
+     */
+    fun refreshCommunityArchive() {
+        haptic()
+        scope.launch {
+            val json = withContext(Dispatchers.IO) {
+                CommunityArchive.fetchCatalog()
+            }
+            if (json == null) {
+                communityNote.value = R.string.community_offline
+                return@launch
+            }
+            mergeCommunityCatalog(json)
+            runCatching { repo.putSetting(OnyxRepository.KEY_COMMUNITY_CACHE, json) }
+            communityNote.value = R.string.community_refreshed
+        }
+    }
+
+    /** Adds never-seen catalog entries to the live archive list. */
+    private fun mergeCommunityCatalog(json: String) {
+        val fresh = CommunityArchive.parseCatalog(json)
+        if (fresh.isEmpty()) return
+        val known = community.value.map { it.signature }.toHashSet()
+        community.value = community.value + fresh.filter { it.signature !in known }
+    }
+
+    /**
+     * One-tap archive import: an identical custom look that was already
+     * saved is simply re-applied (no duplicate rows); a new one is saved as
+     * a normal custom theme and applied. The 30-slot cap still guards the
+     * gallery — when full, a note tells the user to free a slot.
+     */
+    fun importCommunityTheme(entry: CommunityEntry) {
+        haptic()
+        val t = entry.theme
+        val existing = themes.value.firstOrNull {
+            !it.builtin && themeSignature(it) == entry.signature
+        }
+        if (existing != null) {
+            switchTheme(existing.id)
+            return
+        }
+        scope.launch {
+            val id = runCatching { repo.saveCustomTheme(t) }.getOrDefault(-1L)
+            if (id > 0) {
+                runCatching { repo.applyTheme(id) }
+            } else {
+                communityNote.value = R.string.community_full
+            }
         }
     }
 

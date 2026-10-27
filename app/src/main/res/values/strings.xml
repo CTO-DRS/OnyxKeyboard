@@ -63,8 +63,24 @@
     <string name="editor_pick_image">Choose</string>
     <string name="editor_remove_image">Remove</string>
     <string name="editor_share">Share</string>
+    <string name="editor_key_radius">Key corner radius</string>
+    <string name="editor_space_style">Space bar face</string>
+    <string name="space_style_icon">Icon</string>
+    <string name="space_style_text">Word</string>
+    <string name="space_style_hidden">Blank</string>
+    <string name="space_bar_word">Space</string>
     <string name="themes_import">Import</string>
     <string name="themes_import_bad_code">No valid theme code in clipboard</string>
+
+    <!-- Community theme archive -->
+    <string name="panel_community">Community archive</string>
+    <string name="community_browse">Community theme archive</string>
+    <string name="community_refresh">Refresh</string>
+    <string name="community_refreshed">Catalog refreshed</string>
+    <string name="community_offline">No connection — showing the built-in shelf</string>
+    <string name="community_imported">Imported</string>
+    <string name="community_full">Gallery full — delete a custom theme first</string>
+    <string name="community_count">Looks available: %1$d</string>
 
     <!-- Profiles screen -->
     <string name="add_profile">New profile</string>

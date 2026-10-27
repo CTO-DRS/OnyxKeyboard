@@ -35,11 +35,14 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.SpaceBar
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -87,6 +90,12 @@ fun ThemeEditorPanel(controller: OnyxKeyboardController) {
         }
     }
 
+    // Slider's local position — keyed on the DRAFT identity (not the value,
+    // so dragging never fights the recompositions it itself triggers).
+    var radius by remember(d.id) {
+        mutableFloatStateOf(d.keyRadius.coerceIn(0, 26).toFloat())
+    }
+
     val title = stringResource(R.string.panel_theme_editor)
     val nameHint = stringResource(R.string.editor_name_hint)
     val saveLabel = stringResource(R.string.editor_save)
@@ -98,6 +107,11 @@ fun ThemeEditorPanel(controller: OnyxKeyboardController) {
     val bgLabel = stringResource(R.string.editor_bg_image)
     val pickLabel = stringResource(R.string.editor_pick_image)
     val removeLabel = stringResource(R.string.editor_remove_image)
+    val radiusLabel = stringResource(R.string.editor_key_radius)
+    val spaceStyleLabel = stringResource(R.string.editor_space_style)
+    val iconStyle = stringResource(R.string.space_style_icon)
+    val textStyle = stringResource(R.string.space_style_text)
+    val hiddenStyle = stringResource(R.string.space_style_hidden)
     val roles = listOf(
         EditorColorRole(
             stringResource(R.string.editor_role_surface),
@@ -241,6 +255,64 @@ fun ThemeEditorPanel(controller: OnyxKeyboardController) {
                 Spacer(Modifier.height(4.dp))
             }
 
+            // ------------------------------------------------- shape section
+            // Corner radius — slides from sharp squares to full pills and
+            // reshapes the live preview (and, after saving, every key).
+            ShapeSliderRow(
+                theme = theme,
+                label = radiusLabel,
+                value = radius,
+                onValueChange = { v ->
+                    radius = v
+                    controller.updateEditingTheme {
+                        it.copy(keyRadius = v.toInt().coerceIn(0, 26))
+                    }
+                }
+            )
+            Spacer(Modifier.height(2.dp))
+
+            // Space-bar face — cycles icon → the word → silent blank bar.
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = spaceStyleLabel,
+                    color = theme.keyText.copy(alpha = 0.7f),
+                    fontSize = 10.sp,
+                    maxLines = 1,
+                    modifier = Modifier.width(78.dp)
+                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color.White.copy(alpha = 0.07f))
+                        .clickable {
+                            controller.updateEditingTheme {
+                                it.copy(spaceLabel = (it.spaceLabel + 1) % 3)
+                            }
+                        }
+                        .padding(horizontal = 9.dp, vertical = 4.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.SpaceBar,
+                        contentDescription = spaceStyleLabel,
+                        tint = theme.accent,
+                        modifier = Modifier.size(12.dp)
+                    )
+                    Text(
+                        text = when (d.spaceLabel) {
+                            1 -> textStyle
+                            2 -> hiddenStyle
+                            else -> iconStyle
+                        },
+                        color = theme.accent,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(start = 3.dp)
+                    )
+                }
+            }
+            Spacer(Modifier.height(4.dp))
+
             // Optional background photo — picked through the transparent
             // trampoline; the file never leaves the device on export.
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -381,6 +453,48 @@ internal data class EditorColorRole(
     val set: (ThemeEntity, Long) -> ThemeEntity,
 )
 
+/**
+ * The key-corner-radius slider row. Continuous 0..26dp: 0 squares, 14 the
+ * classic neon glass, 26 full pills — the live preview below tracks it.
+ */
+@Composable
+private fun ShapeSliderRow(
+    theme: OnyxColors,
+    label: String,
+    value: Float,
+    onValueChange: (Float) -> Unit,
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            text = label,
+            color = theme.keyText.copy(alpha = 0.7f),
+            fontSize = 10.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.width(78.dp)
+        )
+        Slider(
+            value = value.coerceIn(0f, 26f),
+            onValueChange = onValueChange,
+            valueRange = 0f..26f,
+            colors = SliderDefaults.colors(
+                thumbColor = theme.accent,
+                activeTrackColor = theme.accent,
+                inactiveTrackColor = Color.White.copy(alpha = 0.14f),
+            ),
+            modifier = Modifier
+                .weight(1f)
+                .height(24.dp)
+        )
+        Text(
+            text = value.toInt().coerceIn(0, 26).toString(),
+            color = theme.keyText.copy(alpha = 0.6f),
+            fontSize = 9.sp,
+            modifier = Modifier.width(20.dp)
+        )
+    }
+}
+
 /** Curated swatch pool: neutrals for surfaces/text + vivid picks for accents. */
 internal val EDITOR_SWATCHES: List<Long> = listOf(
     0xFFFFFFFFL, 0xFFF2EDFFL, 0xFF9AA0A6L, 0xFF5A6068L,
@@ -435,6 +549,9 @@ private fun RoleRow(
 
 @Composable
 private fun EditorPreview(d: ThemeEntity) {
+    // Proportional radius: the preview keys are ~14dp tall vs the real 50dp,
+    // so the shape reads faithfully (0 squares → 26 full pills).
+    val miniRadius = (d.keyRadius.coerceIn(0, 26) * 0.3f).dp
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -455,6 +572,7 @@ private fun EditorPreview(d: ThemeEntity) {
             repeat(4) {
                 PreviewKey(
                     fill = Color(d.keyFill).copy(alpha = 0.85f),
+                    radius = miniRadius,
                     modifier = Modifier.weight(1f).height(14.dp)
                 )
             }
@@ -462,16 +580,17 @@ private fun EditorPreview(d: ThemeEntity) {
         Spacer(Modifier.height(3.dp))
         PreviewKey(
             fill = Color(d.accent).copy(alpha = 0.9f),
+            radius = miniRadius,
             modifier = Modifier.fillMaxWidth().height(7.dp)
         )
     }
 }
 
 @Composable
-private fun PreviewKey(fill: Color, modifier: Modifier) {
+private fun PreviewKey(fill: Color, radius: androidx.compose.ui.unit.Dp, modifier: Modifier) {
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(3.dp))
+            .clip(RoundedCornerShape(radius))
             .background(fill)
     )
 }

@@ -1,0 +1,47 @@
+{
+  "updated": "2026-10-27",
+  "repo": "https://github.com/CTO-DRS/OnyxKeyboard",
+  "how_to_contribute": "شارك رمز ONYX1. من محرر الثيمات ثم افتح PR يضيفه إلى themes[]",
+  "themes": [
+    {
+      "code": "ONYX1.eyJ2IjoxLCJuYW1lIjoi2YbZitmI2YYg2KfZhNi52KfYtdmF2KkiLCJzdXJmYWNlVG9wIjoiRkYwQTA5MTIiLCJzdXJmYWNlQm90dG9tIjoiRkYxNjEwMjQiLCJrZXlGaWxsIjoiRkYyMjFBMzgiLCJrZXlUZXh0IjoiRkZGMUVBRkYiLCJhY2NlbnQiOiJGRkMwODRGQyIsImdsb3ciOiJGRjkzMzNFQSIsInBhcnRpY2xlIjoiRkZDMDg0RkMiLCJzaGFwZSI6eyJyIjoxOCwicyI6MX19",
+      "by": "فريق Onyx"
+    },
+    {
+      "code": "ONYX1.eyJ2IjoxLCJuYW1lIjoi2YXZitmG2KfYoSDYp9mE2YTZitmEIiwic3VyZmFjZVRvcCI6IkZGMDMxMjFBIiwic3VyZmFjZUJvdHRvbSI6IkZGMDcyNDMzIiwia2V5RmlsbCI6IkZGMEUzNTQ4Iiwia2V5VGV4dCI6IkZGRTBGNUZGIiwiYWNjZW50IjoiRkYyMkQzRUUiLCJnbG93IjoiRkYwODkxQjIiLCJwYXJ0aWNsZSI6IkZGMjJEM0VFIiwic2hhcGUiOnsiciI6MjYsInMiOjB9fQ",
+      "by": "فريق Onyx"
+    },
+    {
+      "code": "ONYX1.eyJ2IjoxLCJuYW1lIjoi2LXYrdix2KfYoSDZhdmG2KrYtdmBINin2YTZhNmK2YQiLCJzdXJmYWNlVG9wIjoiRkYxMjBFMDYiLCJzdXJmYWNlQm90dG9tIjoiRkYyMDE4MEIiLCJrZXlGaWxsIjoiRkYzMzI3MEYiLCJrZXlUZXh0IjoiRkZGRkYzRDkiLCJhY2NlbnQiOiJGRkZCQkYyNCIsImdsb3ciOiJGRkI0NTMwOSIsInBhcnRpY2xlIjoiRkZGQkJGMjQiLCJzaGFwZSI6eyJyIjo4LCJzIjowfX0",
+      "by": "فريق Onyx"
+    },
+    {
+      "code": "ONYX1.eyJ2IjoxLCJuYW1lIjoi2LLZhdix2ZHYryDYp9mE2LHZhdin2YQiLCJzdXJmYWNlVG9wIjoiRkYwNzE1MTAiLCJzdXJmYWNlQm90dG9tIjoiRkYwQzI0MUEiLCJrZXlGaWxsIjoiRkYxMjNCMkMiLCJrZXlUZXh0IjoiRkZFOEZGRjUiLCJhY2NlbnQiOiJGRjM0RDM5OSIsImdsb3ciOiJGRjA1OTY2OSIsInBhcnRpY2xlIjoiRkYzNEQzOTkiLCJzaGFwZSI6eyJyIjoxNCwicyI6Mn19",
+      "by": "فريق Onyx"
+    },
+    {
+      "code": "ONYX1.eyJ2IjoxLCJuYW1lIjoi2KjYrdixINin2YTZgtix2YXYstmKIiwic3VyZmFjZVRvcCI6IkZGMTcwQTBFIiwic3VyZmFjZUJvdHRvbSI6IkZGMjcxMDFBIiwia2V5RmlsbCI6IkZGM0QxNTI2Iiwia2V5VGV4dCI6IkZGRkZFQUYxIiwiYWNjZW50IjoiRkZGQjcxODUiLCJnbG93IjoiRkZCRTEyM0MiLCJwYXJ0aWNsZSI6IkZGRkI3MTg1Iiwic2hhcGUiOnsiciI6MTQsInMiOjB9fQ",
+      "by": "فريق Onyx"
+    },
+    {
+      "code": "ONYX1.eyJ2IjoxLCJuYW1lIjoi2KjZhtmB2LPYrCDYp9mE2YXYrNix2ZHYqSIsInN1cmZhY2VUb3AiOiJGRjBCMDYyMCIsInN1cmZhY2VCb3R0b20iOiJGRjE2MEQzOCIsImtleUZpbGwiOiJGRjI0MTQ1NyIsImtleVRleHQiOiJGRkYwRUFGRiIsImFjY2VudCI6IkZGQTc4QkZBIiwiZ2xvdyI6IkZGNkQyOEQ5IiwicGFydGljbGUiOiJGRkE3OEJGQSIsInNoYXBlIjp7InIiOjIyLCJzIjowfX0",
+      "by": "فريق Onyx"
+    },
+    {
+      "code": "ONYX1.eyJ2IjoxLCJuYW1lIjoi2YLZh9mI2Kkg2KfZhNi12KjYp9itIiwic3VyZmFjZVRvcCI6IkZGRjdGMEU4Iiwic3VyZmFjZUJvdHRvbSI6IkZGRUZFMkQ0Iiwia2V5RmlsbCI6IkZGRkZGRkZGIiwia2V5VGV4dCI6IkZGM0UyQzFFIiwiYWNjZW50IjoiRkZBMTYyMDciLCJnbG93IjoiRkZENkE3NTYiLCJwYXJ0aWNsZSI6IkZGQzA4QTNFIiwic2hhcGUiOnsiciI6MTQsInMiOjF9fQ",
+      "by": "فريق Onyx"
+    },
+    {
+      "code": "ONYX1.eyJ2IjoxLCJuYW1lIjoi2LPZhdin2YjZiiDZh9in2K_YpiIsInN1cmZhY2VUb3AiOiJGRkVGRjZGRCIsInN1cmZhY2VCb3R0b20iOiJGRkRERUJGQSIsImtleUZpbGwiOiJGRkZGRkZGRiIsImtleVRleHQiOiJGRjFEMzM0OCIsImFjY2VudCI6IkZGMDI4NEM3IiwiZ2xvdyI6IkZGN0NDNEVGIiwicGFydGljbGUiOiJGRjQyQTVGNSIsInNoYXBlIjp7InIiOjE0LCJzIjowfX0",
+      "by": "فريق Onyx"
+    },
+    {
+      "code": "ONYX1.eyJ2IjoxLCJuYW1lIjoi2K7ZiNiu2Kkg2KfZhNmI2LHYryIsInN1cmZhY2VUb3AiOiJGRkZCRjBGMiIsInN1cmZhY2VCb3R0b20iOiJGRkY2REVFNCIsImtleUZpbGwiOiJGRkZGRkZGRiIsImtleVRleHQiOiJGRjNFMjIyQyIsImFjY2VudCI6IkZGREIyNzc3IiwiZ2xvdyI6IkZGRjU4RUE4IiwicGFydGljbGUiOiJGRkVDNkU5RSIsInNoYXBlIjp7InIiOjE0LCJzIjowfX0",
+      "by": "فريق Onyx"
+    },
+    {
+      "code": "ONYX1.eyJ2IjoxLCJuYW1lIjoi2YbYudmG2KfYuSDYp9mE2K3Yr9mK2YLYqSIsInN1cmZhY2VUb3AiOiJGRkVGRkFGMyIsInN1cmZhY2VCb3R0b20iOiJGRkRDRjJFNyIsImtleUZpbGwiOiJGRkZGRkZGRiIsImtleVRleHQiOiJGRjFEM0EyQiIsImFjY2VudCI6IkZGMDU5NjY5IiwiZ2xvdyI6IkZGNkVFN0I3IiwicGFydGljbGUiOiJGRjM0RDM5OSIsInNoYXBlIjp7InIiOjE0LCJzIjowfX0",
+      "by": "فريق Onyx"
+    }
+  ]
+}

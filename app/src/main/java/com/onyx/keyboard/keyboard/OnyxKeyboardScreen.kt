@@ -45,6 +45,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -64,9 +65,11 @@ import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.onyx.keyboard.R
 import com.onyx.keyboard.intelligence.ArabicLexicon
 import com.onyx.keyboard.intelligence.EnglishLexicon
 import com.onyx.keyboard.ui.components.ParticleField
@@ -95,6 +98,9 @@ fun OnyxKeyboardScreen(controller: OnyxKeyboardController) {
                 Brush.verticalGradient(listOf(theme.surfaceTop, theme.surfaceBottom))
             )
     ) {
+        // Every neon key inherits the active theme's corner radius, so the
+        // editor's shape slider reshapes the whole keyboard live.
+        CompositionLocalProvider(LocalOnyxKeyRadius provides theme.keyRadius) {
         // Custom background photo (user themes) — decoded once per path on a
         // background dispatcher, downscaled to a sane pixel budget. A gradient
         // scrim on top keeps the palette (and every key label) readable — the
@@ -203,8 +209,10 @@ fun OnyxKeyboardScreen(controller: OnyxKeyboardController) {
                     KeyboardPage.SETTINGS -> SettingsPanel(controller)
                     KeyboardPage.THEMES -> ThemesPanel(controller)
                     KeyboardPage.THEME_EDITOR -> ThemeEditorPanel(controller)
+                    KeyboardPage.THEME_ARCHIVE -> CommunityArchivePanel(controller)
                 }
             }
+        }
         }
     }
 }
@@ -645,18 +653,44 @@ private fun RowScope.SpaceWithCursorSlide(
             }
     ) {
         Row(modifier = Modifier.fillMaxSize()) {
-            KeyIcon(
-                icon = Icons.Filled.SpaceBar,
-                contentDescription = "Space",
-                accent = theme.accent,
-                glow = theme.glow,
-                keyFill = theme.keyFill,
-                keyText = theme.keyText.copy(alpha = 0.75f),
-                onClick = { controller.onSpace() },
-                onLongClick = onLongClick,
-                weight = 1f,
-                height = 50.dp
-            )
+            // Theme shape setting: icon / the word / silent blank bar.
+            when (theme.spaceLabel) {
+                1 -> KeyButton(
+                    label = stringResource(R.string.space_bar_word),
+                    accent = theme.accent,
+                    glow = theme.glow,
+                    keyFill = theme.keyFill,
+                    keyText = theme.keyText.copy(alpha = 0.75f),
+                    onClick = { controller.onSpace() },
+                    onLongClick = onLongClick,
+                    weight = 1f,
+                    height = 50.dp,
+                    fontSize = 15
+                )
+                2 -> KeyButton(
+                    label = "",
+                    accent = theme.accent,
+                    glow = theme.glow,
+                    keyFill = theme.keyFill,
+                    keyText = theme.keyText.copy(alpha = 0.75f),
+                    onClick = { controller.onSpace() },
+                    onLongClick = onLongClick,
+                    weight = 1f,
+                    height = 50.dp
+                )
+                else -> KeyIcon(
+                    icon = Icons.Filled.SpaceBar,
+                    contentDescription = "Space",
+                    accent = theme.accent,
+                    glow = theme.glow,
+                    keyFill = theme.keyFill,
+                    keyText = theme.keyText.copy(alpha = 0.75f),
+                    onClick = { controller.onSpace() },
+                    onLongClick = onLongClick,
+                    weight = 1f,
+                    height = 50.dp
+                )
+            }
         }
     }
 }

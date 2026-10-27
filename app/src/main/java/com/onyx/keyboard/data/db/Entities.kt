@@ -47,6 +47,19 @@ data class ThemeEntity(
      */
     @ColumnInfo(defaultValue = "")
     val bgUri: String = "",
+    /**
+     * Corner radius of every key (including the space bar) in dp.
+     * 0 = sharp squares, 14 = the classic neon-glass look, 26 = pill keys.
+     * v4 schema; travels INSIDE shared theme codes (additive "shape" object).
+     */
+    @ColumnInfo(defaultValue = "14")
+    val keyRadius: Int = 14,
+    /**
+     * Space-bar face style: 0 = icon (classic), 1 = the word «مسافة»,
+     * 2 = silent blank bar. v4 schema; travels inside shared codes too.
+     */
+    @ColumnInfo(defaultValue = "0")
+    val spaceLabel: Int = 0,
 )
 
 @Entity(

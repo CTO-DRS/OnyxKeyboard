@@ -23,7 +23,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
     // v3: added themes.bgUri (custom background photo path) — proper
     // migration so users upgrading from v2 keep every row (clips, custom
     // themes, learned words are NOT wiped).
-    version = 3,
+    // v4: added themes.keyRadius + themes.spaceLabel (key/space shape
+    // settings edited in the theme editor and carried by share codes).
+    version = 4,
     exportSchema = false
 )
 abstract class OnyxDatabase : RoomDatabase() {
@@ -48,6 +50,14 @@ abstract class OnyxDatabase : RoomDatabase() {
             }
         }
 
+        /** v3 → v4: themes gained the key/space shape columns. */
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE themes ADD COLUMN keyRadius INTEGER NOT NULL DEFAULT 14")
+                db.execSQL("ALTER TABLE themes ADD COLUMN spaceLabel INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         fun get(context: Context): OnyxDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
@@ -55,7 +65,7 @@ abstract class OnyxDatabase : RoomDatabase() {
                     OnyxDatabase::class.java,
                     "onyx.db"
                 )
-                    .addMigrations(MIGRATION_2_3)
+                    .addMigrations(MIGRATION_2_3, MIGRATION_3_4)
                     .fallbackToDestructiveMigration()
                     .build()
                     .also { instance = it }

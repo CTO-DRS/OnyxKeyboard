@@ -61,8 +61,24 @@
     <string name="editor_pick_image">اختيار</string>
     <string name="editor_remove_image">إزالة</string>
     <string name="editor_share">مشاركة</string>
+    <string name="editor_key_radius">استدارة الأزرار</string>
+    <string name="editor_space_style">شكل المسافة</string>
+    <string name="space_style_icon">أيقونة</string>
+    <string name="space_style_text">كلمة</string>
+    <string name="space_style_hidden">مخفية</string>
+    <string name="space_bar_word">مسافة</string>
     <string name="themes_import">استيراد</string>
     <string name="themes_import_bad_code">لا يوجد رمز قالب صالح في الحافظة</string>
+
+    <!-- أرشيف ثيمات المجتمع -->
+    <string name="panel_community">أرشيف المجتمع</string>
+    <string name="community_browse">أرشيف ثيمات المجتمع</string>
+    <string name="community_refresh">تحديث</string>
+    <string name="community_refreshed">تم التحديث من المجتمع</string>
+    <string name="community_offline">لا اتصال — يُعرض الرف المدمج</string>
+    <string name="community_imported">مستورد</string>
+    <string name="community_full">المعرض ممتلئ — احذف قالبًا مخصصًا أولًا</string>
+    <string name="community_count">قوالب متاحة: %1$d</string>
 
     <!-- Profiles screen -->
     <string name="add_profile">ملف جديد</string>

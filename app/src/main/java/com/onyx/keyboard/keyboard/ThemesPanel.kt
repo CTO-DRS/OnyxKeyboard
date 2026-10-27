@@ -279,10 +279,12 @@ private fun MiniThemeCard(
         Spacer(Modifier.height(6.dp))
 
         // Mini key rows — a tiny faithful keyboard rendered in the preset's colors.
+        val miniRadius = (theme.keyRadius.coerceIn(0, 26) * 0.18f).dp
         Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
             repeat(4) {
                 MiniKey(
                     fill = Color(theme.keyFill).copy(alpha = 0.85f),
+                    radius = miniRadius,
                     modifier = Modifier.weight(1f).height(9.dp)
                 )
             }
@@ -292,17 +294,20 @@ private fun MiniThemeCard(
             repeat(3) {
                 MiniKey(
                     fill = Color(theme.keyFill).copy(alpha = 0.6f),
+                    radius = miniRadius,
                     modifier = Modifier.weight(1f).height(7.dp)
                 )
             }
             MiniKey(
                 fill = Color(theme.accent).copy(alpha = 0.85f),
+                radius = miniRadius,
                 modifier = Modifier.weight(1f).height(7.dp)
             )
         }
         Spacer(Modifier.height(2.dp))
         MiniKey(
             fill = Color(theme.accent).copy(alpha = 0.9f),
+            radius = miniRadius,
             modifier = Modifier.fillMaxWidth().height(5.dp)
         )
 
@@ -326,11 +331,12 @@ private fun MiniThemeCard(
     }
 }
 
+/** Shared mini key used by gallery + community archive cards. */
 @Composable
-private fun MiniKey(fill: Color, modifier: Modifier) {
+internal fun MiniKey(fill: Color, modifier: Modifier, radius: androidx.compose.ui.unit.Dp = 2.5.dp) {
     androidx.compose.foundation.layout.Box(
         modifier = modifier
-            .clip(RoundedCornerShape(2.5.dp))
+            .clip(RoundedCornerShape(radius))
             .background(fill)
     )
 }

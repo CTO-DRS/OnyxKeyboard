@@ -14,17 +14,26 @@ import org.json.JSONObject
  * friend can open the file in any text viewer, copy it, and import it from
  * the keyboard with one tap (no file-picker plumbing inside the IME).
  *
- * Encoded payload = the palette ONLY: name + the 7 colors. Row ids,
+ * Encoded payload = the palette ONLY: name + the 7 colors + an OPTIONAL
+ * additive "shape" object (key corner radius + space-bar face). Row ids,
  * builtin flags and the private background-photo path never leave the
- * device. Decoding is defensive: prefix may appear anywhere in the pasted
- * text, unknown/garbled payloads yield null, names are capped and colors
- * are masked to 32 bits before anything touches Room.
+ * device. The format version stays 1 forever: the shape object is optional
+ * and additive, so an OLDER Onyx still decodes a NEW code (it ignores the
+ * unknown key and falls back to the default shape), and this decoder
+ * accepts old codes without a shape at all. Decoding is defensive: the
+ * prefix may appear anywhere in the pasted text, unknown/garbled payloads
+ * yield null, names are capped and colors are masked to 32 bits before
+ * anything touches Room.
  */
 object OnyxThemeCodec {
 
     const val PREFIX = "ONYX1."
     private const val FORMAT = 1
     private const val MAX_NAME = 24
+    val RADIUS_RANGE = 0..26
+    val SPACE_STYLES = 0..2
+    const val DEFAULT_RADIUS = 14
+    const val DEFAULT_SPACE_STYLE = 0
 
     fun encode(theme: ThemeEntity): String {
         val json = JSONObject().apply {
@@ -37,6 +46,10 @@ object OnyxThemeCodec {
             put("accent", hex(theme.accent))
             put("glow", hex(theme.glow))
             put("particle", hex(theme.particle))
+            put("shape", JSONObject().apply {
+                put("r", theme.keyRadius.coerceIn(RADIUS_RANGE.first, RADIUS_RANGE.last))
+                put("s", theme.spaceLabel.coerceIn(SPACE_STYLES.first, SPACE_STYLES.last))
+            })
         }
         val bytes = json.toString().toByteArray(Charsets.UTF_8)
         return PREFIX + Base64.encodeToString(
@@ -58,6 +71,13 @@ object OnyxThemeCodec {
         )
         if (json.optInt("v") != FORMAT) return null
 
+        // Additive shape block: legacy codes (and older apps) simply skip it.
+        val shape = json.optJSONObject("shape")
+        val radius = shape?.optInt("r", DEFAULT_RADIUS)
+            ?.coerceIn(RADIUS_RANGE.first, RADIUS_RANGE.last) ?: DEFAULT_RADIUS
+        val spaceStyle = shape?.optInt("s", DEFAULT_SPACE_STYLE)
+            ?.coerceIn(SPACE_STYLES.first, SPACE_STYLES.last) ?: DEFAULT_SPACE_STYLE
+
         ThemeEntity(
             id = 0,
             name = json.optString("name").trim().take(MAX_NAME).ifBlank { "Onyx" },
@@ -70,6 +90,8 @@ object OnyxThemeCodec {
             particle = color(json.getString("particle")),
             builtin = false,
             bgUri = "",
+            keyRadius = radius,
+            spaceLabel = spaceStyle,
         )
     }.getOrNull()
 

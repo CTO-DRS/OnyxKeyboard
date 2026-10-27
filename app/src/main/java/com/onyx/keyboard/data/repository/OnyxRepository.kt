@@ -66,6 +66,8 @@ class OnyxRepository private constructor(context: Context) {
         const val MAX_CUSTOM_THEMES = 30
         /** Pending background-photo hand-off from the picker trampoline. */
         const val KEY_PENDING_BG_PICK = "pending_bg_pick"
+        /** Cached raw JSON of the community theme catalog (last good fetch). */
+        const val KEY_COMMUNITY_CACHE = "community_catalog_cache"
 
         @Volatile
         private var instance: OnyxRepository? = null

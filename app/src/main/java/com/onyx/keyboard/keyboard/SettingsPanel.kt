@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyRow
@@ -19,6 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Switch
@@ -121,6 +123,40 @@ fun SettingsPanel(controller: OnyxKeyboardController) {
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                 contentDescription = stringResource(R.string.themes_browse),
+                tint = theme.accent,
+                modifier = Modifier.size(16.dp)
+            )
+        }
+        Spacer(Modifier.height(6.dp))
+
+        // Community archive — a shared shelf of importable looks.
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(theme.accent.copy(alpha = 0.14f))
+                .clickable { controller.openCommunityArchive() }
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Groups,
+                contentDescription = stringResource(R.string.panel_community),
+                tint = theme.accent,
+                modifier = Modifier.size(18.dp)
+            )
+            Text(
+                text = stringResource(R.string.community_browse),
+                color = theme.keyText.copy(alpha = 0.9f),
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = 8.dp)
+            )
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                contentDescription = stringResource(R.string.panel_community),
                 tint = theme.accent,
                 modifier = Modifier.size(16.dp)
             )
