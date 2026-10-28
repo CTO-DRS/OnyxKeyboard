@@ -57,6 +57,7 @@ class OnyxRepository private constructor(context: Context) {
         const val KEY_PREDICTIONS = "predictions"
         const val KEY_NUMBER_ROW = "number_row"
         const val KEY_RECENT_EMOJI = "recent_emoji"
+        const val KEY_ONE_HAND = "one_hand"
         /** Follow the system day/night mode and swap between light/dark presets. */
         const val KEY_AUTO_THEME = "auto_theme"
         /** Privacy switch: when off, copies are never saved to the clip history. */

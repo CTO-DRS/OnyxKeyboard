@@ -20,11 +20,14 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Backspace
@@ -33,7 +36,9 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.KeyboardReturn
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.OpenInFull
 import androidx.compose.material.icons.filled.SpaceBar
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -88,12 +93,6 @@ import kotlin.math.abs
 @Composable
 fun OnyxKeyboardScreen(controller: OnyxKeyboardController) {
     val theme by controller.theme.collectAsState()
-    val page by controller.page.collectAsState()
-    val altReq by controller.altPopup.collectAsState()
-    val glideCands by controller.glideCandidates.collectAsState()
-    val glideChain by controller.glideChain.collectAsState()
-    val suggestions by controller.suggestions.collectAsState()
-    val buffer by controller.buffer.collectAsState()
 
     Box(
         Modifier
@@ -105,6 +104,7 @@ fun OnyxKeyboardScreen(controller: OnyxKeyboardController) {
         // Every neon key inherits the active theme's corner radius, so the
         // editor's shape slider reshapes the whole keyboard live.
         CompositionLocalProvider(LocalOnyxKeyRadius provides theme.keyRadius) {
+        val oneHand by controller.oneHand.collectAsState()
         // Custom background photo (user themes) — decoded once per path on a
         // background dispatcher, downscaled to a sane pixel budget. A gradient
         // scrim on top keeps the palette (and every key label) readable — the
@@ -166,63 +166,149 @@ fun OnyxKeyboardScreen(controller: OnyxKeyboardController) {
             )
         }
 
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.Bottom
-        ) {
-            if (altReq != null) {
-                // Long-press alternatives replace the toolbar IN-PLACE (same
-                // height) so the keyboard never resizes mid-gesture.
-                AlternativesStrip(
-                    req = altReq!!,
-                    controller = controller,
-                    onPick = { controller.onAltChar(it) },
-                    onDismiss = { controller.closeAltPopup() }
-                )
-            } else if (glideChain.isNotEmpty()) {
-                // MID-GLIDE letter chain — the live glowing trace of the keys
-                // the finger has crossed, replacing the toolbar in place so
-                // the keyboard never resizes during the gesture.
-                GlideChainStrip(chain = glideChain, controller = controller)
-            } else if (glideCands.isNotEmpty()) {
-                // Post-glide word alternatives — first entry (the committed
-                // word) is highlighted; tapping another swaps it in place.
-                GlideStrip(candidates = glideCands, controller = controller)
-            } else if (suggestions.isNotEmpty() && buffer.isNotEmpty()) {
-                // Actively composing a word with suggestions available — the
-                // full-width suggestion strip takes the toolbar's place.
-                SuggestionBar(controller)
-            } else {
-                // Idle / predicting mode: language chip, compact prediction
-                // chips (next-word) and the tool dock share the row.
-                SmartToolbar(controller)
-            }
-
-            AnimatedContent(
-                targetState = page,
-                transitionSpec = {
-                    (slideInVertically(tween(220)) { it / 6 } + fadeIn(tween(220)))
-                        .togetherWith(slideOutVertically(tween(180)) { it / 8 } + fadeOut(tween(120)))
-                },
-                label = "kbPage"
-            ) { p ->
-                when (p) {
-                    KeyboardPage.LETTERS -> LettersPage(controller)
-                    KeyboardPage.SYMBOLS -> SymbolsPage(controller)
-                    KeyboardPage.NUMPAD -> NumpadPage(controller)
-                    KeyboardPage.EMOJI -> EmojiPanel(controller)
-                    KeyboardPage.CLIPBOARD -> ClipboardPanel(controller)
-                    KeyboardPage.TRANSLATE -> TranslatePanel(controller)
-                    KeyboardPage.GIF -> GifPanel(controller)
-                    KeyboardPage.VOICE -> VoicePanel(controller)
-                    KeyboardPage.SETTINGS -> SettingsPanel(controller)
-                    KeyboardPage.THEMES -> ThemesPanel(controller)
-                    KeyboardPage.THEME_EDITOR -> ThemeEditorPanel(controller)
-                    KeyboardPage.THEME_ARCHIVE -> CommunityArchivePanel(controller)
+        if (oneHand == OneHand.OFF) {
+            KeyboardBody(controller, shrink = 1f)
+        } else {
+            // ONE-HANDED: the content column shrinks to a fraction of the
+            // width and docks to the chosen edge; the free side stays part of
+            // the themed surface. A slim grip rides the inner edge with two
+            // controls: flip dock side, back to full width.
+            Row(Modifier.fillMaxWidth()) {
+                if (oneHand == OneHand.RIGHT) {
+                    Box(Modifier.weight(1f))
+                    KeyboardBody(controller, shrink = ONE_HAND_FRACTION)
+                } else {
+                    KeyboardBody(controller, shrink = ONE_HAND_FRACTION)
                 }
+                OneHandGrip(controller, side = oneHand)
             }
         }
         }
+    }
+}
+
+/** Width fraction of the keyboard content in one-handed mode. */
+internal const val ONE_HAND_FRACTION = 0.84f
+
+/**
+ * The keyboard content (toolbar strip + animated pages). [shrink] caps the
+ * width fraction — 1f in normal mode, ONE_HAND_FRACTION in one-handed mode.
+ */
+@Composable
+private fun KeyboardBody(controller: OnyxKeyboardController, shrink: Float) {
+    val altReq by controller.altPopup.collectAsState()
+    val glideCands by controller.glideCandidates.collectAsState()
+    val glideChain by controller.glideChain.collectAsState()
+    val suggestions by controller.suggestions.collectAsState()
+    val buffer by controller.buffer.collectAsState()
+    val page by controller.page.collectAsState()
+
+    Column(
+        modifier = Modifier.fillMaxWidth(shrink),
+        verticalArrangement = Arrangement.Bottom
+    ) {
+        if (altReq != null) {
+            // Long-press alternatives replace the toolbar IN-PLACE (same
+            // height) so the keyboard never resizes mid-gesture.
+            AlternativesStrip(
+                req = altReq!!,
+                controller = controller,
+                onPick = { controller.onAltChar(it) },
+                onDismiss = { controller.closeAltPopup() }
+            )
+        } else if (glideChain.isNotEmpty()) {
+            // MID-GLIDE letter chain — the live glowing trace of the keys
+            // the finger has crossed, replacing the toolbar in place so
+            // the keyboard never resizes during the gesture.
+            GlideChainStrip(chain = glideChain, controller = controller)
+        } else if (glideCands.isNotEmpty()) {
+            // Post-glide word alternatives — first entry (the committed
+            // word) is highlighted; tapping another swaps it in place.
+            GlideStrip(candidates = glideCands, controller = controller)
+        } else if (suggestions.isNotEmpty() && buffer.isNotEmpty()) {
+            // Actively composing a word with suggestions available — the
+            // full-width suggestion strip takes the toolbar's place.
+            SuggestionBar(controller)
+        } else {
+            // Idle / predicting mode: language chip, compact prediction
+            // chips (next-word) and the tool dock share the row.
+            SmartToolbar(controller)
+        }
+
+        AnimatedContent(
+            targetState = page,
+            transitionSpec = {
+                (slideInVertically(tween(220)) { it / 6 } + fadeIn(tween(220)))
+                    .togetherWith(slideOutVertically(tween(180)) { it / 8 } + fadeOut(tween(120)))
+            },
+            label = "kbPage"
+        ) { p ->
+            when (p) {
+                KeyboardPage.LETTERS -> LettersPage(controller)
+                KeyboardPage.SYMBOLS -> SymbolsPage(controller)
+                KeyboardPage.NUMPAD -> NumpadPage(controller)
+                KeyboardPage.EMOJI -> EmojiPanel(controller)
+                KeyboardPage.CLIPBOARD -> ClipboardPanel(controller)
+                KeyboardPage.TRANSLATE -> TranslatePanel(controller)
+                KeyboardPage.GIF -> GifPanel(controller)
+                KeyboardPage.VOICE -> VoicePanel(controller)
+                KeyboardPage.SETTINGS -> SettingsPanel(controller)
+                KeyboardPage.THEMES -> ThemesPanel(controller)
+                KeyboardPage.THEME_EDITOR -> ThemeEditorPanel(controller)
+                KeyboardPage.THEME_ARCHIVE -> CommunityArchivePanel(controller)
+            }
+        }
+    }
+}
+
+/**
+ * The one-handed grip: a slim control rail on the keyboard's inner edge.
+ * Flip = swap dock side (left ⇄ right), Expand = back to full width.
+ */
+@Composable
+private fun OneHandGrip(controller: OnyxKeyboardController, side: OneHand) {
+    val theme by controller.theme.collectAsState()
+    Column(
+        modifier = Modifier
+            .fillMaxHeight()
+            .width(30.dp)
+            .padding(start = 2.dp, end = 2.dp, bottom = 6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        GripButton(controller, Icons.Filled.SwapHoriz,
+            contentDescription = if (side == OneHand.LEFT) "Move keyboard to right"
+                                 else "Move keyboard to left"
+        ) { controller.setOneHand(side.flipped) }
+        Spacer(Modifier.height(8.dp))
+        GripButton(controller, Icons.Filled.OpenInFull,
+            contentDescription = "Back to full width"
+        ) { controller.setOneHand(OneHand.OFF) }
+    }
+}
+
+@Composable
+private fun GripButton(
+    controller: OnyxKeyboardController,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    contentDescription: String,
+    onClick: () -> Unit,
+) {
+    val theme by controller.theme.collectAsState()
+    Box(
+        modifier = Modifier
+            .size(26.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(theme.keyFill.copy(alpha = 0.65f))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            tint = theme.accent.copy(alpha = 0.9f),
+            modifier = Modifier.size(16.dp)
+        )
     }
 }
 
@@ -241,10 +327,13 @@ fun OnyxKeyboardScreen(controller: OnyxKeyboardController) {
  *  - On release the path is matched through [GlideMatcher] against the
  *    current language lexicon; the best word is committed and the rest
  *    appear in the candidate strip (GlideStrip).
+ *
+ * [compact] hides the number row — used when the page renders UNDER the
+ * emoji search panel, where every dp of vertical budget is precious.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun LettersPage(controller: OnyxKeyboardController) {
+internal fun LettersPage(controller: OnyxKeyboardController, compact: Boolean = false) {
     val theme by controller.theme.collectAsState()
     val lang by controller.lang.collectAsState()
     val shift by controller.shift.collectAsState()
@@ -265,6 +354,10 @@ private fun LettersPage(controller: OnyxKeyboardController) {
                 val slop = viewConfiguration.touchSlop
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
+                    // While an internal capture owns the keystrokes (emoji
+                    // search), a glide would "type" into the search query —
+                    // do not engage.
+                    if (controller.internalCapture.value != null) return@awaitEachGesture
                     val bc = boxCoords.value ?: return@awaitEachGesture
 
                     fun hitAt(boxLocal: Offset): String? {
@@ -338,7 +431,7 @@ private fun LettersPage(controller: OnyxKeyboardController) {
             }
     ) {
         Column(Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
-            if (showNumbers) {
+            if (showNumbers && !compact) {
                 Row(Modifier.fillMaxWidth()) {
                     KeyboardLayouts.numberRow.forEach { digit ->
                         KeyButton(

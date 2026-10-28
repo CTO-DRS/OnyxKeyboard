@@ -88,6 +88,9 @@ fun SettingsPanel(controller: OnyxKeyboardController) {
             controller.setSetting(OnyxRepository.KEY_GIF_NET, it)
         }
 
+        // ONE-HANDED MODE — segmented: off / dock left / dock right.
+        OneHandRow(controller)
+
         Text(
             text = stringResource(R.string.settings_theme),
             color = theme.accent,
@@ -270,5 +273,50 @@ private fun ToggleRow(
             ),
             modifier = Modifier.height(26.dp)
         )
+    }
+}
+
+/** Segmented picker for the one-handed dock side: off / left / right. */
+@Composable
+private fun OneHandRow(controller: OnyxKeyboardController) {
+    val theme by controller.theme.collectAsState()
+    val mode by controller.oneHand.collectAsState()
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Text(
+            text = stringResource(R.string.one_hand_title),
+            color = theme.keyText.copy(alpha = 0.85f),
+            fontSize = 13.sp,
+            modifier = Modifier.weight(1f)
+        )
+        val options = listOf(
+            OneHand.OFF to stringResource(R.string.one_hand_off),
+            OneHand.LEFT to stringResource(R.string.one_hand_left),
+            OneHand.RIGHT to stringResource(R.string.one_hand_right),
+        )
+        options.forEach { (m, label) ->
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(9.dp))
+                    .background(
+                        if (mode == m) theme.accent.copy(alpha = 0.4f)
+                        else theme.keyFill.copy(alpha = 0.6f)
+                    )
+                    .clickable { controller.setOneHand(m) }
+                    .padding(horizontal = 10.dp, vertical = 6.dp)
+            ) {
+                Text(
+                    text = label,
+                    color = if (mode == m) Color.White else theme.keyText.copy(alpha = 0.8f),
+                    fontSize = 12.sp,
+                    fontWeight = if (mode == m) FontWeight.Bold else FontWeight.Normal
+                )
+            }
+        }
     }
 }

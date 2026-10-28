@@ -200,4 +200,15 @@
     <string name="settings_profile">Profile</string>
     <string name="on">On</string>
     <string name="off">Off</string>
+
+    <!-- One-handed mode + emoji panel search -->
+    <string name="one_hand_title">One-handed mode</string>
+    <string name="one_hand_off">Off</string>
+    <string name="one_hand_left">Left</string>
+    <string name="one_hand_right">Right</string>
+    <string name="emoji_panel_title">Emoji</string>
+    <string name="emoji_search_hint">Search emoji in Arabic: heart, cat, laugh…</string>
+    <string name="emoji_search_clear">Clear query</string>
+    <string name="emoji_search_close">Close search</string>
+    <string name="emoji_no_results">No matching emoji</string>
 </resources>

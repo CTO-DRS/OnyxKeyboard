@@ -25,6 +25,7 @@ import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.onyx.keyboard.AppGraph
 import com.onyx.keyboard.data.repository.OnyxRepository
 import com.onyx.keyboard.keyboard.GifItem
+import com.onyx.keyboard.keyboard.OneHand
 import com.onyx.keyboard.keyboard.OnyxInputView
 import com.onyx.keyboard.keyboard.OnyxKeyboardController
 import com.onyx.keyboard.keyboard.OnyxKeyboardScreen
@@ -155,6 +156,10 @@ class OnyxIME : InputMethodService() {
         scope.launch {
             repo.observeSetting(OnyxRepository.KEY_RECENT_EMOJI, "")
                 .collectLatest { controller.recentEmojis.value = controller.parseRecentEmojis(it) }
+        }
+        scope.launch {
+            repo.observeSetting(OnyxRepository.KEY_ONE_HAND, "off")
+                .collectLatest { controller.oneHand.value = OneHand.from(it) }
         }
         scope.launch {
             repo.observeSetting(OnyxRepository.KEY_AUTO_THEME, "false")

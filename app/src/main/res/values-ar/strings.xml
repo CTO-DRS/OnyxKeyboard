@@ -198,4 +198,15 @@
     <string name="settings_profile">الملف الشخصي</string>
     <string name="on">مفعّل</string>
     <string name="off">معطّل</string>
+
+    <!-- وضع أحادي اليد + بحث لوحة الإيموجي -->
+    <string name="one_hand_title">وضع أحادي اليد</string>
+    <string name="one_hand_off">معطّل</string>
+    <string name="one_hand_left">لليسار</string>
+    <string name="one_hand_right">لليمين</string>
+    <string name="emoji_panel_title">الرموز التعبيرية</string>
+    <string name="emoji_search_hint">ابحث بالعربية: قلب، قط، ضحك…</string>
+    <string name="emoji_search_clear">مسح البحث</string>
+    <string name="emoji_search_close">إنهاء البحث</string>
+    <string name="emoji_no_results">لا رموز مطابقة</string>
 </resources>

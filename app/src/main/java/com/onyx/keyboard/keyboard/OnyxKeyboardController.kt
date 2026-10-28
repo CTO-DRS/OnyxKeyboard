@@ -232,10 +232,18 @@ class OnyxKeyboardController(
     /**
      * When non-null, every keystroke (chars / space / backspace / alts) is
      * routed into this internal buffer instead of the app's InputConnection.
-     * Powers the theme-editor name field — a real Compose TextField inside the
-     * IME surface can never receive the IME's own keys.
+     * Powers the theme-editor name field AND the emoji-panel search field —
+     * a real Compose TextField inside the IME surface can never receive the
+     * IME's own keys.
      */
     val internalCapture = MutableStateFlow<String?>(null)
+
+    /**
+     * Emoji-panel SEARCH is active: the letters keyboard is shown under the
+     * panel, [internalCapture] feeds the query and results replace the
+     * category grid. False → normal category browsing.
+     */
+    val emojiSearch = MutableStateFlow(false)
 
     val haptics = MutableStateFlow(true)
     val sound = MutableStateFlow(true)
@@ -255,6 +263,13 @@ class OnyxKeyboardController(
 
     /** Show a dedicated 1..0 row above the letters (user preference). */
     val numberRow = MutableStateFlow(false)
+
+    /**
+     * ONE-HANDED MODE: the whole keyboard surface shrinks to ~84% width and
+     * docks to [OneHand.LEFT] / [OneHand.RIGHT]. Persisted in the settings
+     * table and streamed in by the IME service.
+     */
+    val oneHand = MutableStateFlow(OneHand.OFF)
 
     /** Next-word prediction (bigram-driven) — user preference. */
     val predictions = MutableStateFlow(true)
@@ -651,6 +666,9 @@ class OnyxKeyboardController(
      */
     fun commitEnter() {
         haptic(); clickSound()
+        // Enter never reaches the host app while an internal capture is
+        // active (emoji search): the query is not a sentence to close.
+        if (internalCapture.value != null) return
         clearGlide()
         buffer.value = ""
         suggestions.value = emptyList()
@@ -853,7 +871,47 @@ class OnyxKeyboardController(
         if (p != page.value && page.value != KeyboardPage.LETTERS && p == KeyboardPage.LETTERS) {
             // returning to letters keeps buffer as-is
         }
+        // Leaving the emoji page must never leave search capture dangling —
+        // the next field would silently swallow keystrokes.
+        if (p != KeyboardPage.EMOJI && emojiSearch.value) endEmojiSearch()
         page.value = p
+    }
+
+    // ------------------------------------------------- one-handed mode
+
+    /** Persists the one-handed dock side; the IME observer echoes it back. */
+    fun setOneHand(mode: OneHand) {
+        haptic()
+        oneHand.value = mode
+        scope.launch { runCatching { repo.putSetting(OnyxRepository.KEY_ONE_HAND, mode.id) } }
+    }
+
+    // ------------------------------------------------- emoji search
+
+    /**
+     * Opens the emoji search: the query buffer is the INTERNAL capture (the
+     * IME's own keys must land here, not in the host app's field) and the
+     * letters keyboard renders under the panel.
+     */
+    fun beginEmojiSearch() {
+        haptic()
+        buffer.value = ""
+        suggestions.value = emptyList()
+        altPopup.value = null
+        emojiSearch.value = true
+        if (internalCapture.value == null) internalCapture.value = ""
+    }
+
+    /** Ends the search and releases the capture buffer back to the app. */
+    fun endEmojiSearch() {
+        if (!emojiSearch.value) return
+        emojiSearch.value = false
+        internalCapture.value = null
+    }
+
+    /** Clears the query text but keeps the search open. */
+    fun clearEmojiSearch() {
+        if (emojiSearch.value) internalCapture.value = ""
     }
 
     // ------------------------------------------------------------- glide typing
@@ -978,6 +1036,9 @@ class OnyxKeyboardController(
      */
     fun pasteText(text: String) {
         if (text.isEmpty()) return
+        // Pasting is a host-app action — meaningless (and dangerous to the
+        // session state) while the query capture owns the keystrokes.
+        if (internalCapture.value != null) return
         haptic()
         lastCommitWasSpace = false
         ic?.commitText(text, 1)
