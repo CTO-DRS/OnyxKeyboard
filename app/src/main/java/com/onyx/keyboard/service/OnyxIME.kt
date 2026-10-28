@@ -26,6 +26,7 @@ import com.onyx.keyboard.AppGraph
 import com.onyx.keyboard.data.repository.OnyxRepository
 import com.onyx.keyboard.keyboard.GifItem
 import com.onyx.keyboard.keyboard.OneHand
+import com.onyx.keyboard.keyboard.OnyxFallbackScreen
 import com.onyx.keyboard.keyboard.OnyxInputView
 import com.onyx.keyboard.keyboard.OnyxKeyboardController
 import com.onyx.keyboard.keyboard.OnyxKeyboardScreen
@@ -201,30 +202,112 @@ class OnyxIME : InputMethodService() {
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
-        refreshSystemDark()
-        controller.refreshTheme()
+        runCatching {
+            refreshSystemDark()
+            controller.refreshTheme()
+        }.onFailure { Log.e(TAG, "onConfigurationChanged theme refresh failed", it) }
     }
 
     // ------------------------------------------------------------ IME surface
 
     override fun onEvaluateFullscreenMode(): Boolean = false
 
+    /**
+     * Overridable surface factories — production builds always compose the
+     * full surface; tests can inject a failing factory to drive the ladder.
+     */
+    @androidx.annotation.VisibleForTesting
+    internal var fullSurfaceFactory: () -> OnyxInputView = {
+        OnyxInputView(this).also { it.setContent { OnyxKeyboardScreen(controller) } }
+    }
+
+    @androidx.annotation.VisibleForTesting
+    internal var minimalSurfaceFactory: () -> OnyxInputView = {
+        OnyxInputView(this).also { it.setContent { OnyxFallbackScreen(controller) } }
+    }
+
+    /**
+     * CRITICAL FIX (the keyboard never appears):
+     *
+     * The previous implementation returned a plain English error TextView the
+     * FIRST time the full surface failed to build — and kept returning the
+     * same broken/empty state on every subsequent field. A compose failure on
+     * a real device (theme glitch, OEM quirk) therefore read as "Onyx does
+     * not show up at all".
+     *
+     * The creation is now a LADDER, and every level is cached only when it
+     * succeeds:
+     *  1. the previously-succeeded view (still valid),
+     *  2. the full Compose surface,
+     *  3. a MINIMAL fallback keyboard (tiny code path, same controller —
+     *     the user can still type even while the fancy surface is broken),
+     *  4. a clear ARABIC error surface — and NO caching, so the very next
+     *     text field retries the whole ladder from the top.
+     */
     override fun onCreateInputView(): View {
-        return try {
-            val view = inputView ?: OnyxInputView(this).also {
-                it.setContent { OnyxKeyboardScreen(controller) }
-                inputView = it
+        inputView?.let { cached ->
+            installViewTreeOwnersOnWindow(cached)
+            return cached
+        }
+
+        var fullError: Throwable? = null
+        runCatching { fullSurfaceFactory() }
+            .onSuccess { full ->
+                Log.i(TAG, "full keyboard surface ready")
+                inputView = full
+                installViewTreeOwnersOnWindow(full)
+                return full
             }
-            installViewTreeOwnersOnWindow(view)
-            view
-        } catch (t: Throwable) {
-            // Never leave the user without any input surface — fall back to a
-            // plain view and log the real cause for diagnosis.
-            Log.e(TAG, "onCreateInputView failed", t)
-            android.widget.TextView(this).apply {
-                text = "Onyx keyboard UI error: ${t.message}"
-                setPadding(48, 64, 48, 64)
+            .onFailure {
+                fullError = it
+                Log.e(TAG, "full keyboard surface failed — falling back", it)
             }
+
+        var minimalError: Throwable? = null
+        runCatching { minimalSurfaceFactory() }
+            .onSuccess { minimal ->
+                Log.w(TAG, "using the minimal fallback keyboard surface")
+                inputView = minimal
+                installViewTreeOwnersOnWindow(minimal)
+                return minimal
+            }
+            .onFailure {
+                minimalError = it
+                Log.e(TAG, "minimal keyboard surface failed too", it)
+            }
+
+        // Nothing composed — report in Arabic, keep nothing cached, and let
+        // the next onCreateInputView retry the ladder from the top.
+        return keyboardErrorView(fullError, minimalError)
+    }
+
+    /** Arabic last-resort surface explaining that typing is unavailable. */
+    private fun keyboardErrorView(fullError: Throwable?, minimalError: Throwable?): View {
+        val reason = fullError?.message?.take(160)
+            ?: minimalError?.message?.take(160)
+            ?: getString(com.onyx.keyboard.R.string.kb_error_generic)
+        return android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            gravity = android.view.Gravity.CENTER
+            setBackgroundColor(0xFF15121F.toInt())
+            setPadding(48, 96, 48, 96)
+            addView(
+                android.widget.TextView(this@OnyxIME).apply {
+                    text = getString(com.onyx.keyboard.R.string.kb_error_title)
+                    textSize = 17f
+                    setTextColor(0xFFF2EDFF.toInt())
+                    gravity = android.view.Gravity.CENTER
+                }
+            )
+            addView(
+                android.widget.TextView(this@OnyxIME).apply {
+                    text = reason
+                    textSize = 12f
+                    setTextColor(0x99F2EDFF.toInt())
+                    gravity = android.view.Gravity.CENTER
+                    setPadding(0, 24, 0, 0)
+                }
+            )
         }
     }
 
@@ -256,28 +339,37 @@ class OnyxIME : InputMethodService() {
         }.onFailure { Log.w(TAG, "Failed to install view-tree owners on IME window", it) }
     }
 
+    // CRITICAL FIX (the keyboard never appears): any exception escaping these
+    // callbacks aborts InputMethodService's show-window sequence and the IME
+    // silently never displays. Every callback is now crash-armored; the
+    // controller state keeps its best-effort values instead.
+
     override fun onStartInput(attribute: EditorInfo?, restarting: Boolean) {
         super.onStartInput(attribute, restarting)
-        controller.attach(currentInputConnection)
+        runCatching { controller.attach(currentInputConnection) }
+            .onFailure { Log.e(TAG, "onStartInput attach failed", it) }
     }
 
     override fun onStartInputView(editorInfo: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(editorInfo, restarting)
-        val cls = (editorInfo?.inputType ?: 0) and InputType.TYPE_MASK_CLASS
-        val numeric = cls == InputType.TYPE_CLASS_NUMBER ||
-            cls == InputType.TYPE_CLASS_PHONE ||
-            cls == InputType.TYPE_CLASS_DATETIME
-        // Honour the field's editor action (send / search / done…) so the
-        // Enter key performs what the app expects instead of adding a newline.
-        val imeOptions = editorInfo?.imeOptions ?: 0
-        val noEnterAction = imeOptions and EditorInfo.IME_FLAG_NO_ENTER_ACTION != 0
-        val action = editorInfo?.actionId ?: EditorInfo.IME_ACTION_NONE
-        val editorAction = if (noEnterAction || action == EditorInfo.IME_ACTION_NONE) 0 else action
-        controller.resetForNewField(numeric, editorAction)
+        runCatching {
+            val cls = (editorInfo?.inputType ?: 0) and InputType.TYPE_MASK_CLASS
+            val numeric = cls == InputType.TYPE_CLASS_NUMBER ||
+                cls == InputType.TYPE_CLASS_PHONE ||
+                cls == InputType.TYPE_CLASS_DATETIME
+            // Honour the field's editor action (send / search / done…) so the
+            // Enter key performs what the app expects instead of adding a newline.
+            val imeOptions = editorInfo?.imeOptions ?: 0
+            val noEnterAction = imeOptions and EditorInfo.IME_FLAG_NO_ENTER_ACTION != 0
+            val action = editorInfo?.actionId ?: EditorInfo.IME_ACTION_NONE
+            val editorAction = if (noEnterAction || action == EditorInfo.IME_ACTION_NONE) 0 else action
+            controller.resetForNewField(numeric, editorAction)
+        }.onFailure { Log.e(TAG, "onStartInputView reset failed", it) }
     }
 
     override fun onFinishInput() {
-        controller.detach()
+        runCatching { controller.detach() }
+            .onFailure { Log.e(TAG, "onFinishInput detach failed", it) }
         super.onFinishInput()
     }
 

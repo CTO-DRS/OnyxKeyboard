@@ -86,6 +86,12 @@ class OnyxImeServiceLifecycleTest {
     @Test
     fun ime_onCreateInputView_returns_working_view() {
         composeRule.runOnUiThread {
+            // No-compose factory: this test verifies the SERVICE wiring, not
+            // the compose surface (detached compositions starve their
+            // Recomposer and poison the shared compose-idling machinery).
+            ime.fullSurfaceFactory = {
+                com.onyx.keyboard.keyboard.OnyxInputView(ime)
+            }
             val view = ime.onCreateInputView()
             assert(view != null)
         }
@@ -95,6 +101,9 @@ class OnyxImeServiceLifecycleTest {
     @Test
     fun ime_full_input_lifecycle_numeric_field() {
         composeRule.runOnUiThread {
+            ime.fullSurfaceFactory = {
+                com.onyx.keyboard.keyboard.OnyxInputView(ime)
+            }
             val info = EditorInfo().apply {
                 inputType = android.text.InputType.TYPE_CLASS_NUMBER
             }

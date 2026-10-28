@@ -93,8 +93,15 @@ fun EmojiPanel(controller: OnyxKeyboardController) {
     val cats = EmojiCatalog.categories
     val results = remember(query) { EmojiCatalog.search(query) }
 
+    // CRITICAL FIX (emoji search rendered on top of the letters keyboard):
+    // this composable is placed inside AnimatedContent, which stacks its
+    // children in a BOX. Emitting the panel Column and the search LettersPage
+    // as two SIBLINGS made them OVERLAP — the letters keyboard was drawn over
+    // the results grid and both were unusable. Everything now lives in ONE
+    // Column, so the letters keyboard renders BELOW the panel as designed.
     Column(Modifier.fillMaxWidth()) {
-        PanelHeader(controller, stringResource(R.string.emoji_panel_title))
+        Column(Modifier.fillMaxWidth()) {
+            PanelHeader(controller, stringResource(R.string.emoji_panel_title))
 
         // Search field — tap to engage capture mode; shows the live query.
         Row(
@@ -203,13 +210,17 @@ fun EmojiPanel(controller: OnyxKeyboardController) {
                 EmojiGrid(emojis, 8, controller)
             }
         }
-    }
 
-    if (searchActive) {
-        // The typing surface for the query — compact (number row hidden),
-        // glide disarmed inside the controller while capture is active.
-        LettersPage(controller, compact = true)
+        if (searchActive) {
+            // The typing surface for the query — compact (number row hidden),
+            // glide disarmed inside the controller while capture is active.
+            // Lives INSIDE the same Column (never a sibling of the panel in
+            // AnimatedContent's Box, which would stack the two on top of
+            // each other).
+            LettersPage(controller, compact = true)
+        }
     }
+}
 }
 
 /** Shared emoji grid: [columns] cells, tap commits through [controller]. */

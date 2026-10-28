@@ -377,6 +377,10 @@ class OnyxKeyboardController(
         // A fresh field is a fresh session — never leak editor state into it.
         editingTheme.value = null
         internalCapture.value = null
+        // The emoji-search flag must follow its capture buffer: a stale flag
+        // with a null buffer would render the search UI on the next emoji
+        // visit and silently swallow the first keystroke into nothing.
+        emojiSearch.value = false
         page.value = if (numeric) KeyboardPage.SYMBOLS else KeyboardPage.LETTERS
     }
 

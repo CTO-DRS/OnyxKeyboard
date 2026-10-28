@@ -211,4 +211,8 @@
     <string name="emoji_search_clear">Clear query</string>
     <string name="emoji_search_close">Close search</string>
     <string name="emoji_no_results">No matching emoji</string>
+
+    <!-- Last-resort keyboard error surface (Arabic-first, always shown even on non-Arabic locales) -->
+    <string name="kb_error_title">تعذّر عرض لوحة مفاتيح Onyx كاملة\nأعيد المحاولة تلقائيًا مع الحقل التالي</string>
+    <string name="kb_error_generic">خطأ غير معروف في واجهة اللوحة</string>
 </resources>

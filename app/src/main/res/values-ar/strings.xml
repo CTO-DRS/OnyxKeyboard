@@ -209,4 +209,8 @@
     <string name="emoji_search_clear">مسح البحث</string>
     <string name="emoji_search_close">إنهاء البحث</string>
     <string name="emoji_no_results">لا رموز مطابقة</string>
+
+    <!-- سطح الخطأ الاحتياطي للوحة -->
+    <string name="kb_error_title">تعذّر عرض لوحة مفاتيح Onyx كاملة\nأعيد المحاولة تلقائيًا مع الحقل التالي</string>
+    <string name="kb_error_generic">خطأ غير معروف في واجهة اللوحة</string>
 </resources>
