@@ -18,6 +18,7 @@ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
@@ -173,7 +174,13 @@ fun OnyxKeyboardScreen(controller: OnyxKeyboardController) {
             // width and docks to the chosen edge; the free side stays part of
             // the themed surface. A slim grip rides the inner edge with two
             // controls: flip dock side, back to full width.
-            Row(Modifier.fillMaxWidth()) {
+            // CRITICAL FIX (keyboard stretched to full screen height, part 3):
+            // OneHandGrip uses fillMaxHeight() — inside a plain wrap-content
+            // Row that resolves to the window's MAX height (the whole screen),
+            // inflating the IME window exactly like the cursor-cluster bug.
+            // IntrinsicSize.Min binds the Row (and therefore the grip) to the
+            // keyboard's own natural height, whatever page is open.
+            Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
                 if (oneHand == OneHand.RIGHT) {
                     Box(Modifier.weight(1f))
                     KeyboardBody(controller, shrink = ONE_HAND_FRACTION)
@@ -625,8 +632,16 @@ private fun BottomRow(controller: OnyxKeyboardController) {
         )
         // Cursor cluster — replaces the old bottom language key (the toolbar
         // language chip still switches AR/EN). Hold to keep scrolling.
+        // CRITICAL FIX (keyboard stretched to full screen height, part 1):
+        // this Row used fillMaxSize(). Inside a weighted Box (whose height
+        // constraints are loose 0..screenHeight) fillMaxHeight resolves to the
+        // FULL SCREEN, so the bottom row, the letters column and ultimately
+        // the whole IME window measured to the display height — the keyboard
+        // rendered pinned to the TOP with a huge empty surface below it.
+        // fillMaxWidth() lets the Row wrap its 50.dp keys like every other
+        // cell in the row.
         Box(modifier = Modifier.weight(1.5f)) {
-            Row(modifier = Modifier.fillMaxSize()) {
+            Row(modifier = Modifier.fillMaxWidth()) {
                 KeyIcon(
                     icon = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
                     contentDescription = "Cursor left",
@@ -770,7 +785,13 @@ private fun RowScope.SpaceWithCursorSlide(
                 }
             }
     ) {
-        Row(modifier = Modifier.fillMaxSize()) {
+        // CRITICAL FIX (keyboard stretched to full screen height, part 2):
+        // the space key's wrapper Row used fillMaxSize() — same loose-height
+        // explosion as the cursor cluster (this Box is a weighted child of
+        // the bottom row, so fillMaxHeight resolved to the SCREEN height and
+        // blew the IME window up to full screen). fillMaxWidth() wraps the
+        // 50.dp space key instead.
+        Row(modifier = Modifier.fillMaxWidth()) {
             // Theme shape setting: icon / the word / silent blank bar.
             when (theme.spaceLabel) {
                 1 -> KeyButton(

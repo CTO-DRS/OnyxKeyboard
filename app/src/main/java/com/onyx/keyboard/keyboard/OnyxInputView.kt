@@ -90,6 +90,42 @@ class OnyxInputView(context: Context) :
         addView(view)
     }
 
+    /**
+     * CRITICAL FIX (keyboard stretched to full screen height — the hard cap):
+     *
+     * An IME window's height is WRAP_CONTENT, but the window's measure spec
+     * still carries the FULL display height as its upper bound. Any Compose
+     * child that resolves `fillMaxHeight`/`fillMaxSize` against those loose
+     * constraints pulls the measured height to the whole screen — the keyboard
+     * then renders pinned to the top with a huge empty surface below it (the
+     * bug the user reported; three such sites were fixed inside the screen
+     * composable). This override is the LAST LINE OF DEFENSE: whatever the
+     * content does, the measure spec handed to children can never exceed
+     * [MAX_KEYBOARD_HEIGHT_DP] and the final measured height is clamped to
+     * the same ceiling (+ our own insets padding), so the IME window always
+     * stays a docked keyboard instead of a full-screen sheet.
+     */
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        val hMode = MeasureSpec.getMode(heightMeasureSpec)
+        val hSize = MeasureSpec.getSize(heightMeasureSpec)
+        val density = resources.displayMetrics.density
+        val capPx = (MAX_KEYBOARD_HEIGHT_DP * density).toInt()
+
+        // Never tighten an EXACTLY spec (bounded by definition); turn
+        // UNSPECIFIED/AT_MOST into an AT_MOST ceiling.
+        val childSpec = when (hMode) {
+            MeasureSpec.EXACTLY -> heightMeasureSpec
+            MeasureSpec.UNSPECIFIED -> MeasureSpec.makeMeasureSpec(capPx, MeasureSpec.AT_MOST)
+            else -> MeasureSpec.makeMeasureSpec(minOf(hSize, capPx), MeasureSpec.AT_MOST)
+        }
+        super.onMeasure(widthMeasureSpec, childSpec)
+
+        // Defensive final clamp (children should honour AT_MOST; belt+braces).
+        if (measuredHeight > capPx + paddingTop + paddingBottom) {
+            setMeasuredDimension(measuredWidth, capPx + paddingTop + paddingBottom)
+        }
+    }
+
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
         // CRITICAL FIX (crash when the user wants to type):
@@ -121,5 +157,15 @@ class OnyxInputView(context: Context) :
     fun dispose() {
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
         store.clear()
+    }
+
+    companion object {
+        /**
+         * Generous ceiling above the tallest legitimate surface (the emoji
+         * search page: toolbar + panel + compact letters ≈ 590dp) but far
+         * below any phone's display height, so a measurement accident can
+         * never inflate the IME window to a full-screen sheet again.
+         */
+        internal const val MAX_KEYBOARD_HEIGHT_DP = 620
     }
 }

@@ -129,11 +129,10 @@ class OnyxImeWindowHierarchyTest {
         // composeRule) dialog path ShadowLooper.idleMainLooper() would keep
         // pumping its frames forever, so the static shell is composed here.
         controller.particles.value = false
-        val dialog = buildRawImeHierarchy {
-            OnyxInputView(ApplicationProvider.getApplicationContext()).apply {
-                setContent { OnyxKeyboardScreen(controller) }
-            }
+        val input = OnyxInputView(ApplicationProvider.getApplicationContext()).apply {
+            setContent { OnyxKeyboardScreen(controller) }
         }
+        val dialog = buildRawImeHierarchy { input }
         // Must NOT throw.
         dialog.show()
         ShadowLooper.idleMainLooper()
@@ -146,6 +145,15 @@ class OnyxImeWindowHierarchyTest {
         )
         assertNotNull("ComposeView must exist", decor.findComposeView())
         dialog.dismiss()
+        // SUITE HYGIENE: this dialog composition must NOT outlive the test —
+        // a leftover live Recomposer pumps Choreographer frames in this shared
+        // JVM and (combined with other raw compositions) drives every later
+        // composeRule-based class into endless AppNotIdleException waits.
+        // dispose() alone relies on Robolectric's paused-looper dispatch timing,
+        // so the composition is killed DIRECTLY first.
+        decor.findComposeView()?.disposeComposition()
+        input.dispose()
+        ShadowLooper.idleMainLooper()
     }
 
     /**
@@ -165,6 +173,13 @@ class OnyxImeWindowHierarchyTest {
         )
         // And the input view itself still carries them for its own subtree.
         assertNotNull(view.findViewTreeLifecycleOwner())
+
+        // SUITE HYGIENE: the service (its scope, receiver, composed input
+        // view) must not outlive the test — onDestroy disposes the input view
+        // and cancels the controller scope, leaving no live Recomposer behind
+        // to pump frames into later classes.
+        ime.onDestroy()
+        ShadowLooper.idleMainLooper()
     }
 
     private fun android.view.View.findComposeView(): ComposeView? {
