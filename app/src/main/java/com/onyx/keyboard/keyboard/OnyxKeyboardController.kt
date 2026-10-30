@@ -25,11 +25,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import kotlin.math.abs
 import kotlin.random.Random
 
 enum class KeyboardPage {
     LETTERS, SYMBOLS, NUMPAD, EMOJI, CLIPBOARD, TRANSLATE, GIF, SETTINGS,
-    THEMES, THEME_EDITOR, THEME_ARCHIVE, VOICE
+    THEMES, THEME_EDITOR, THEME_ARCHIVE, VOICE, RESIZE
 }
 enum class Lang(val code: String) { AR("ar"), EN("en") }
 enum class ShiftState { OFF, ON, CAPS }
@@ -265,6 +266,31 @@ class OnyxKeyboardController(
     val numberRow = MutableStateFlow(false)
 
     /**
+     * مساحة اللوحة — global key-height scale (0.80..1.30) driven by the
+     * resize panel (toolbar button). Every key multiplies its designed
+     * height by this factor via [LocalOnyxKeyScale]; persisted in the
+     * settings table and streamed in by the IME service.
+     */
+    val keyboardScale = MutableStateFlow(KeyboardScale.DEFAULT)
+
+    /** Double-tap space inserts ". " — user preference (default on). */
+    val doubleSpacePeriod = MutableStateFlow(true)
+
+    /**
+     * TEXT SELECTION MODE: the strip above the letters swaps to the
+     * selection controls (select-all / copy / cut / paste / extend arrows).
+     * Arming it records nothing by itself — the anchor/focus pair below is
+     * only meaningful once an extend or select-all actually runs.
+     */
+    val selectionMode = MutableStateFlow(false)
+
+    /** Fixed edge of the active selection (null = not extended yet). */
+    private var selectionAnchor: Int? = null
+
+    /** Moving edge of the active selection (null = not extended yet). */
+    private var selectionFocus: Int? = null
+
+    /**
      * ONE-HANDED MODE: the whole keyboard surface shrinks to ~84% width and
      * docks to [OneHand.LEFT] / [OneHand.RIGHT]. Persisted in the settings
      * table and streamed in by the IME service.
@@ -352,6 +378,7 @@ class OnyxKeyboardController(
         lastCommitWasSpace = false
         altPopup.value = null
         clearGlide()
+        clearSelection()
         resetSentenceContext()
     }
 
@@ -381,6 +408,10 @@ class OnyxKeyboardController(
         // with a null buffer would render the search UI on the next emoji
         // visit and silently swallow the first keystroke into nothing.
         emojiSearch.value = false
+        // The selection strip belongs to the field it was opened on — a new
+        // field must open as plain typing (stale anchors would corrupt the
+        // first extend into a wild span).
+        clearSelection()
         page.value = if (numeric) KeyboardPage.SYMBOLS else KeyboardPage.LETTERS
     }
 
@@ -457,6 +488,7 @@ class OnyxKeyboardController(
     fun onChar(raw: String) {
         haptic(); clickSound()
         clearGlide()
+        clearSelection()
         val c = applyCase(raw)
         if (captureKey(c)) { autoCapNext.value = false; return }
         buffer.value += c
@@ -526,14 +558,16 @@ class OnyxKeyboardController(
     fun onSpace() {
         haptic(); clickSound()
         clearGlide()
+        clearSelection()
         if (captureKey(" ")) { lastCommitWasSpace = false; return }
         val now = System.currentTimeMillis()
         val b = buffer.value
 
         // Double-space -> ". ": replaces the space inserted by the previous
         // tap when both taps happen quickly on an empty composing buffer
-        // (i.e. right after a word was committed). Standard IME behaviour.
-        if (b.isEmpty() && lastCommitWasSpace && now - lastSpaceAt < 380) {
+        // (i.e. right after a word was committed). Standard IME behaviour —
+        // and now user-switchable from the quick settings.
+        if (doubleSpacePeriod.value && b.isEmpty() && lastCommitWasSpace && now - lastSpaceAt < 380) {
             lastCommitWasSpace = false
             lastSpaceAt = 0
             ic?.deleteSurroundingText(1, 0)
@@ -593,6 +627,18 @@ class OnyxKeyboardController(
         haptic(); clickSound()
         clearGlide()
         if (captureBackspace()) { lastCommitWasSpace = false; return }
+        // While the selection mode is armed, backspace speaks the editor's
+        // language: an active span is deleted WHOLE, then the mode closes —
+        // plain deleting one char of a highlighted span surprises nobody.
+        if (selectionMode.value) {
+            val sel = runCatching { ic?.getSelectedText(0)?.toString() }.getOrNull()
+            clearSelection()
+            if (!sel.isNullOrEmpty()) {
+                lastCommitWasSpace = false
+                ic?.commitText("", 1)
+                return
+            }
+        }
         lastCommitWasSpace = false
         val b = buffer.value
         if (b.isNotEmpty()) {
@@ -647,6 +693,7 @@ class OnyxKeyboardController(
     fun commitText(text: String) {
         haptic(); clickSound()
         clearGlide()
+        clearSelection()
         lastCommitWasSpace = false
         ic?.commitText(text, 1)
         // Sentence terminator -> auto-capitalize the next English letter.
@@ -695,6 +742,7 @@ class OnyxKeyboardController(
     fun insertEmoji(e: String) {
         haptic()
         clearGlide()
+        clearSelection()
         buffer.value = ""
         suggestions.value = emptyList()
         lastCommitWasSpace = false
@@ -726,6 +774,7 @@ class OnyxKeyboardController(
      */
     fun commitSuggestion(s: Suggestion) {
         haptic()
+        clearSelection()
         val shown = displaySuggestion(s)
         if (buffer.value.isNotEmpty()) {
             ic?.setComposingText(shown, 1)
@@ -824,10 +873,132 @@ class OnyxKeyboardController(
      */
     fun moveCursor(delta: Int) {
         haptic()
+        clearSelection()
         val conn = ic ?: return
         val cur = currentCursorPosition(conn, delta)
         val target = (cur + delta).coerceAtLeast(0)
         runCatching { conn.setSelection(target, target) }
+    }
+
+    // ------------------------------------------------- selection mode
+
+    /** Collapses everything selection-related (mode flag + both edges). */
+    private fun clearSelection() {
+        selectionMode.value = false
+        selectionAnchor = null
+        selectionFocus = null
+    }
+
+    /** Toolbar entry: arm the strip, or tear it down when already armed. */
+    fun toggleSelectionMode() {
+        haptic()
+        if (selectionMode.value) {
+            clearSelection()
+        } else {
+            selectionAnchor = null
+            selectionFocus = null
+            selectionMode.value = true
+        }
+    }
+
+    /** Close button of the strip — never throws, safe on any field. */
+    fun exitSelectionMode() = clearSelection()
+
+    /**
+     * تحديد الكل — pins the anchor at 0 and the focus at the document end
+     * when the editor exposes its text; falls back to the platform
+     * select-all context action when extracted text is unavailable.
+     */
+    fun selectionSelectAll() {
+        haptic()
+        val conn = ic ?: return
+        val et = runCatching { conn.getExtractedText(ExtractedTextRequest(), 0) }.getOrNull()
+        val len = et?.text?.length ?: -1
+        if (len > 0) {
+            selectionAnchor = 0
+            selectionFocus = len
+            runCatching { conn.setSelection(0, len) }
+        } else {
+            selectionAnchor = null
+            selectionFocus = null
+            runCatching { conn.performContextMenuAction(android.R.id.selectAll) }
+        }
+    }
+
+    /**
+     * Extends/shrinks the active span by [delta] characters (negative =
+     * left) around the pinned anchor. First extend pins the anchor at the
+     * cursor, so arrows behave the way every editor trains users to expect.
+     */
+    fun selectionExtend(delta: Int) {
+        haptic()
+        val conn = ic ?: return
+        val cur = currentCursorPosition(conn, delta)
+        val et = runCatching { conn.getExtractedText(ExtractedTextRequest(), 0) }.getOrNull()
+        val len = et?.text?.length ?: -1
+        // Unknown length: keep a generous bound — editors clamp setSelection
+        // themselves, and a wrong-but-large bound cannot wrap around.
+        val textLength = if (len >= 0) len else cur + abs(delta) + 4096
+        val anchor0 = selectionAnchor ?: cur
+        val focus0 = selectionFocus ?: cur
+        val r = SelectionMath.extend(anchor0, focus0, delta, textLength)
+        selectionAnchor = r.anchor
+        selectionFocus = r.focus
+        runCatching { conn.setSelection(r.start, r.end) }
+    }
+
+    /** نسخ — puts the highlighted span on the system clipboard. */
+    fun selectionCopy() {
+        val sel = runCatching { ic?.getSelectedText(0)?.toString() }.getOrNull().orEmpty()
+        if (sel.isEmpty()) return
+        haptic()
+        runCatching { clipboard?.setPrimaryClip(ClipData.newPlainText("onyx", sel)) }
+    }
+
+    /** قص — copy, then collapse the span to nothing and close the mode. */
+    fun selectionCut() {
+        selectionCopy()
+        runCatching { ic?.commitText("", 1) }
+        clearSelection()
+    }
+
+    /** لصق — commits the system clipboard over the highlighted span. */
+    fun selectionPaste() {
+        val text = runCatching {
+            clipboard?.primaryClip?.getItemAt(0)?.coerceToText(context)?.toString()
+        }.getOrNull().orEmpty()
+        if (text.isNotEmpty()) pasteText(text)
+    }
+
+    // ------------------------------------------------- مساحة اللوحة
+
+    /** Live slider drag — updates the surface immediately, no disk write. */
+    fun previewKeyboardScale(value: Float) {
+        keyboardScale.value = KeyboardScale.clamp(value)
+    }
+
+    /** Persists the current scale when the slider settles / a preset lands. */
+    fun commitKeyboardScale() {
+        scope.launch {
+            runCatching {
+                repo.putSetting(OnyxRepository.KEY_KEYBOARD_SCALE, keyboardScale.value.toString())
+            }
+        }
+    }
+
+    /** One-shot set (preset chips / reset) — preview + persist together. */
+    fun setKeyboardScale(value: Float) {
+        haptic()
+        previewKeyboardScale(value)
+        commitKeyboardScale()
+    }
+
+    /** Quick-settings twin of the double-space behaviour switch. */
+    fun setDoubleSpacePeriod(on: Boolean) {
+        doubleSpacePeriod.value = on
+        scope.launch {
+            runCatching { repo.putSetting(OnyxRepository.KEY_DOUBLE_SPACE, on.toString()) }
+        }
     }
 
     private fun currentCursorPosition(conn: InputConnection, delta: Int): Int {

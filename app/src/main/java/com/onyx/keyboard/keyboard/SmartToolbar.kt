@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.EmojiEmotions
 import androidx.compose.material.icons.filled.Gif
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.PhotoSizeSelectLarge
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material3.Icon
@@ -160,6 +161,9 @@ fun SmartToolbar(controller: OnyxKeyboardController) {
         }
         ToolIcon(controller, Icons.Filled.Palette, stringResource(R.string.panel_themes)) {
             controller.setPage(KeyboardPage.THEMES)
+        }
+        ToolIcon(controller, Icons.Filled.PhotoSizeSelectLarge, stringResource(R.string.panel_resize)) {
+            controller.setPage(KeyboardPage.RESIZE)
         }
         ToolIcon(controller, Icons.Filled.Tune, stringResource(R.string.panel_settings)) {
             controller.setPage(KeyboardPage.SETTINGS)

@@ -25,6 +25,7 @@ import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.onyx.keyboard.AppGraph
 import com.onyx.keyboard.data.repository.OnyxRepository
 import com.onyx.keyboard.keyboard.GifItem
+import com.onyx.keyboard.keyboard.KeyboardScale
 import com.onyx.keyboard.keyboard.OneHand
 import com.onyx.keyboard.keyboard.OnyxFallbackScreen
 import com.onyx.keyboard.keyboard.OnyxInputView
@@ -161,6 +162,19 @@ class OnyxIME : InputMethodService() {
         scope.launch {
             repo.observeSetting(OnyxRepository.KEY_ONE_HAND, "off")
                 .collectLatest { controller.oneHand.value = OneHand.from(it) }
+        }
+        scope.launch {
+            // مساحة اللوحة — the global key-height scale; persisted values
+            // (possibly from older builds) re-clamp through KeyboardScale.
+            repo.observeSetting(OnyxRepository.KEY_KEYBOARD_SCALE, "1.0")
+                .collectLatest {
+                    controller.keyboardScale.value =
+                        KeyboardScale.clamp(it.toFloatOrNull() ?: KeyboardScale.DEFAULT)
+                }
+        }
+        scope.launch {
+            repo.observeSetting(OnyxRepository.KEY_DOUBLE_SPACE, "true")
+                .collectLatest { controller.doubleSpacePeriod.value = it == "true" }
         }
         scope.launch {
             repo.observeSetting(OnyxRepository.KEY_AUTO_THEME, "false")

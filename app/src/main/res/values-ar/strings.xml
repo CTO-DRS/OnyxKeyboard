@@ -213,4 +213,22 @@
     <!-- سطح الخطأ الاحتياطي للوحة -->
     <string name="kb_error_title">تعذّر عرض لوحة مفاتيح Onyx كاملة\nأعيد المحاولة تلقائيًا مع الحقل التالي</string>
     <string name="kb_error_generic">خطأ غير معروف في واجهة اللوحة</string>
+    <!-- مساحة اللوحة + وضع تحديد النص + نقطة المسافتين -->
+    <string name="panel_resize">مساحة اللوحة</string>
+    <string name="resize_title">مساحة اللوحة</string>
+    <string name="resize_percent">%1$d٪</string>
+    <string name="resize_small">صغير</string>
+    <string name="resize_normal">عادي</string>
+    <string name="resize_large">كبير</string>
+    <string name="resize_huge">ضخم</string>
+    <string name="resize_hint">اسحب المنزلق لتغيير ارتفاع المفاتيح — يُحفظ تلقائيًا</string>
+    <string name="resize_preview">معاينة حية</string>
+    <string name="settings_resize_row">ضبط مساحة اللوحة</string>
+    <string name="panel_selection">وضع التحديد</string>
+    <string name="selection_exit">إنهاء التحديد</string>
+    <string name="selection_all">تحديد الكل</string>
+    <string name="selection_copy">نسخ</string>
+    <string name="selection_cut">قص</string>
+    <string name="selection_paste">لصق</string>
+    <string name="settings_double_space">نقطة تلقائية بعد مسافتين</string>
 </resources>

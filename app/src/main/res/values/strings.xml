@@ -215,4 +215,22 @@
     <!-- Last-resort keyboard error surface (Arabic-first, always shown even on non-Arabic locales) -->
     <string name="kb_error_title">تعذّر عرض لوحة مفاتيح Onyx كاملة\nأعيد المحاولة تلقائيًا مع الحقل التالي</string>
     <string name="kb_error_generic">خطأ غير معروف في واجهة اللوحة</string>
+    <!-- Keyboard AREA resize + text selection mode + double-space switch -->
+    <string name="panel_resize">Keyboard size</string>
+    <string name="resize_title">Keyboard size</string>
+    <string name="resize_percent">%1$d%%</string>
+    <string name="resize_small">Small</string>
+    <string name="resize_normal">Normal</string>
+    <string name="resize_large">Large</string>
+    <string name="resize_huge">Huge</string>
+    <string name="resize_hint">Drag the slider to change the key height — saved automatically</string>
+    <string name="resize_preview">Live preview</string>
+    <string name="settings_resize_row">Adjust keyboard size</string>
+    <string name="panel_selection">Selection mode</string>
+    <string name="selection_exit">Exit selection</string>
+    <string name="selection_all">Select all</string>
+    <string name="selection_copy">Copy</string>
+    <string name="selection_cut">Cut</string>
+    <string name="selection_paste">Paste</string>
+    <string name="settings_double_space">Period on double-space</string>
 </resources>

@@ -36,8 +36,10 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.KeyboardReturn
 import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.OpenInFull
+import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.SpaceBar
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.Icon
@@ -103,8 +105,13 @@ fun OnyxKeyboardScreen(controller: OnyxKeyboardController) {
             )
     ) {
         // Every neon key inherits the active theme's corner radius, so the
-        // editor's shape slider reshapes the whole keyboard live.
-        CompositionLocalProvider(LocalOnyxKeyRadius provides theme.keyRadius) {
+        // editor's shape slider reshapes the whole keyboard live. The scale
+        // provider carries the resize panel's global key-height factor
+        // (مساحة اللوحة) the same way.
+        CompositionLocalProvider(
+            LocalOnyxKeyRadius provides theme.keyRadius,
+            LocalOnyxKeyScale provides controller.keyboardScale.collectAsState().value,
+        ) {
         val oneHand by controller.oneHand.collectAsState()
         // Custom background photo (user themes) — decoded once per path on a
         // background dispatcher, downscaled to a sane pixel budget. A gradient
@@ -209,6 +216,7 @@ private fun KeyboardBody(controller: OnyxKeyboardController, shrink: Float) {
     val suggestions by controller.suggestions.collectAsState()
     val buffer by controller.buffer.collectAsState()
     val page by controller.page.collectAsState()
+    val selecting by controller.selectionMode.collectAsState()
 
     Column(
         modifier = Modifier.fillMaxWidth(shrink),
@@ -232,6 +240,10 @@ private fun KeyboardBody(controller: OnyxKeyboardController, shrink: Float) {
             // Post-glide word alternatives — first entry (the committed
             // word) is highlighted; tapping another swaps it in place.
             GlideStrip(candidates = glideCands, controller = controller)
+        } else if (selecting) {
+            // TEXT SELECTION MODE — select-all / copy / cut / paste / extend
+            // arrows replace the toolbar in place (same 46dp chrome).
+            SelectionStrip(controller)
         } else if (suggestions.isNotEmpty() && buffer.isNotEmpty()) {
             // Actively composing a word with suggestions available — the
             // full-width suggestion strip takes the toolbar's place.
@@ -263,6 +275,7 @@ private fun KeyboardBody(controller: OnyxKeyboardController, shrink: Float) {
                 KeyboardPage.THEMES -> ThemesPanel(controller)
                 KeyboardPage.THEME_EDITOR -> ThemeEditorPanel(controller)
                 KeyboardPage.THEME_ARCHIVE -> CommunityArchivePanel(controller)
+                KeyboardPage.RESIZE -> ResizePanel(controller)
             }
         }
     }
@@ -498,6 +511,7 @@ internal fun LettersPage(controller: OnyxKeyboardController, compact: Boolean = 
                             onClick = { controller.onBackspace() },
                             onLongClick = { controller.onBackspaceWord() },
                             holdRepeat = { controller.onBackspace() },
+                            onSwipe = { controller.onBackspaceWord() },
                             weight = 1.4f
                         )
                     }
@@ -557,6 +571,7 @@ private fun SymbolsPage(controller: OnyxKeyboardController) {
                         onClick = { controller.onBackspace() },
                         onLongClick = { controller.onBackspaceWord() },
                         holdRepeat = { controller.onBackspace() },
+                        onSwipe = { controller.onBackspaceWord() },
                         weight = 1.4f,
                         height = 50.dp
                     )
@@ -631,7 +646,9 @@ private fun BottomRow(controller: OnyxKeyboardController) {
             height = 50.dp
         )
         // Cursor cluster — replaces the old bottom language key (the toolbar
-        // language chip still switches AR/EN). Hold to keep scrolling.
+        // language chip still switches AR/EN). Hold to keep scrolling. The
+        // middle key arms TEXT SELECTION MODE (the strip swaps in above and
+        // its own arrows extend the span).
         // CRITICAL FIX (keyboard stretched to full screen height, part 1):
         // this Row used fillMaxSize(). Inside a weighted Box (whose height
         // constraints are loose 0..screenHeight) fillMaxHeight resolves to the
@@ -640,7 +657,7 @@ private fun BottomRow(controller: OnyxKeyboardController) {
         // rendered pinned to the TOP with a huge empty surface below it.
         // fillMaxWidth() lets the Row wrap its 50.dp keys like every other
         // cell in the row.
-        Box(modifier = Modifier.weight(1.5f)) {
+        Box(modifier = Modifier.weight(1.9f)) {
             Row(modifier = Modifier.fillMaxWidth()) {
                 KeyIcon(
                     icon = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
@@ -652,8 +669,21 @@ private fun BottomRow(controller: OnyxKeyboardController) {
                     onClick = { controller.moveCursor(-1) },
                     weight = 1f,
                     height = 50.dp,
-                    iconSize = 22.dp,
+                    iconSize = 20.dp,
                     holdRepeat = { controller.moveCursor(-1) }
+                )
+                val selecting by controller.selectionMode.collectAsState()
+                KeyIcon(
+                    icon = if (selecting) Icons.Filled.CheckCircle else Icons.Filled.SelectAll,
+                    contentDescription = "Text selection",
+                    accent = theme.accent,
+                    glow = theme.glow,
+                    keyFill = if (selecting) theme.accent.copy(alpha = 0.4f) else theme.keyFill,
+                    keyText = theme.keyText,
+                    onClick = { controller.toggleSelectionMode() },
+                    weight = 1f,
+                    height = 50.dp,
+                    iconSize = 20.dp
                 )
                 KeyIcon(
                     icon = Icons.AutoMirrored.Filled.KeyboardArrowRight,
@@ -665,14 +695,14 @@ private fun BottomRow(controller: OnyxKeyboardController) {
                     onClick = { controller.moveCursor(1) },
                     weight = 1f,
                     height = 50.dp,
-                    iconSize = 22.dp,
+                    iconSize = 20.dp,
                     holdRepeat = { controller.moveCursor(1) }
                 )
             }
         }
         SpaceWithCursorSlide(
             controller = controller,
-            weight = 5f,
+            weight = 4.6f,
             onLongClick = { controller.openSpacePopup() }
         )
         KeyIcon(
@@ -993,6 +1023,7 @@ private fun NumpadPage(controller: OnyxKeyboardController) {
                         onClick = { controller.onBackspace() },
                         onLongClick = { controller.onBackspaceWord() },
                         holdRepeat = { controller.onBackspace() },
+                        onSwipe = { controller.onBackspaceWord() },
                         weight = 1f,
                         height = 50.dp
                     )

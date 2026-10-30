@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
@@ -32,6 +33,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.font.FontWeight
@@ -47,6 +49,15 @@ import kotlinx.coroutines.delay
  * back to the classic 14dp neon-glass look when nothing provides it.
  */
 val LocalOnyxKeyRadius = staticCompositionLocalOf { 14 }
+
+/**
+ * مساحة اللوحة — the global key-height scale (0.80..1.30) provided by the
+ * IME surface from the resize panel. Every key multiplies its designed
+ * height (and its label) by this factor, so the slider reshapes the WHOLE
+ * keyboard live — letters, symbols, numpad, space bar — while the toolbar
+ * and strips keep their fixed 46dp chrome.
+ */
+val LocalOnyxKeyScale = staticCompositionLocalOf { 1f }
 
 /**
  * A single neon-glass key. Pressed state triggers: scale-down, glow bloom,
@@ -80,12 +91,13 @@ fun RowScope.KeyButton(
     val pressed by interaction.collectIsPressedAsState()
     val scale by animateFloatAsState(if (pressed) 0.93f else 1f, label = "keyScale")
     val glowAlpha by animateFloatAsState(if (pressed) 1f else 0.35f, label = "keyGlow")
+    val keyScale = LocalOnyxKeyScale.current
 
     Box(
         modifier
             .weight(weight)
             .padding(horizontal = 2.5.dp, vertical = 3.dp)
-            .height(height)
+            .height(height * keyScale)
             .onGloballyPositioned { coords -> onGeometry?.invoke(coords.boundsInWindow()) }
             .drawBehind {
                 // Outer neon bloom, stronger while pressed.
@@ -128,7 +140,7 @@ fun RowScope.KeyButton(
         Text(
             text = label,
             color = keyText,
-            fontSize = fontSize.sp,
+            fontSize = (fontSize * keyScale).sp,
             fontWeight = fontWeight,
             maxLines = 1
         )
@@ -157,11 +169,19 @@ fun RowScope.KeyIcon(
      * (after an initial delay so a normal tap fires exactly once).
      */
     holdRepeat: (() -> Unit)? = null,
+    /**
+     * If set, a HORIZONTAL swipe across the key (past a fixed threshold)
+     * fires this action once — the backspace's «سحب = محو الكلمة كاملة»
+     * gesture. The drag consumes the pointer stream, which also cancels the
+     * press state — so hold-repeat can never double-fire behind the swipe.
+     */
+    onSwipe: (() -> Unit)? = null,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val scale by animateFloatAsState(if (pressed) 0.93f else 1f, label = "iconScale")
     val glowAlpha by animateFloatAsState(if (pressed) 1f else 0.35f, label = "iconGlow")
+    val keyScale = LocalOnyxKeyScale.current
 
     LaunchedEffect(pressed) {
         val repeat = holdRepeat ?: return@LaunchedEffect
@@ -177,7 +197,28 @@ fun RowScope.KeyIcon(
         modifier
             .weight(weight)
             .padding(horizontal = 2.5.dp, vertical = 3.dp)
-            .height(height)
+            .height(height * keyScale)
+            .then(
+                if (onSwipe != null) {
+                    Modifier.pointerInput(Unit) {
+                        var total = 0f
+                        val threshold = 64.dp.toPx()
+                        detectHorizontalDragGestures(
+                            onDragStart = { total = 0f },
+                            onDragEnd = {
+                                if (SelectionMath.swipeDeletesWord(total, threshold)) {
+                                    onSwipe?.invoke()
+                                }
+                            }
+                        ) { change, amount ->
+                            change.consume()
+                            total += amount
+                        }
+                    }
+                } else {
+                    Modifier
+                }
+            )
             .drawBehind {
                 val a = glowAlpha * (if (pressed) 0.55f else 0.18f)
                 if (a > 0.01f) {
@@ -221,7 +262,7 @@ fun RowScope.KeyIcon(
             tint = keyText,
             modifier = Modifier
                 .fillMaxSize()
-                .padding(iconSize / 2)
+                .padding((iconSize * keyScale) / 2)
         )
     }
 }

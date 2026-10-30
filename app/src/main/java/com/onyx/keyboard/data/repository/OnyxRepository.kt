@@ -58,6 +58,10 @@ class OnyxRepository private constructor(context: Context) {
         const val KEY_NUMBER_ROW = "number_row"
         const val KEY_RECENT_EMOJI = "recent_emoji"
         const val KEY_ONE_HAND = "one_hand"
+        /** Global key-height scale (مساحة اللوحة) — 0.80..1.30 as a float string. */
+        const val KEY_KEYBOARD_SCALE = "keyboard_scale"
+        /** Double-tap space inserts ". " — user preference. */
+        const val KEY_DOUBLE_SPACE = "double_space"
         /** Follow the system day/night mode and swap between light/dark presets. */
         const val KEY_AUTO_THEME = "auto_theme"
         /** Privacy switch: when off, copies are never saved to the clip history. */

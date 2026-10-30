@@ -22,6 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.PhotoSizeSelectLarge
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -72,6 +73,13 @@ fun SettingsPanel(controller: OnyxKeyboardController) {
         ToggleRow(controller, stringResource(R.string.settings_number_row), controller.numberRow) {
             controller.setSetting(OnyxRepository.KEY_NUMBER_ROW, it)
         }
+        ToggleRow(
+            controller,
+            stringResource(R.string.settings_double_space),
+            controller.doubleSpacePeriod
+        ) {
+            controller.setDoubleSpacePeriod(it)
+        }
         ToggleRow(controller, stringResource(R.string.settings_autocorrect), controller.autocorrect) {
             controller.setSetting(OnyxRepository.KEY_AUTOCORRECT, it)
         }
@@ -90,6 +98,39 @@ fun SettingsPanel(controller: OnyxKeyboardController) {
 
         // ONE-HANDED MODE — segmented: off / dock left / dock right.
         OneHandRow(controller)
+
+        // مساحة اللوحة — opens the live resize panel (same toolbar button).
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(theme.accent.copy(alpha = 0.14f))
+                .clickable { controller.setPage(KeyboardPage.RESIZE) }
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Filled.PhotoSizeSelectLarge,
+                contentDescription = stringResource(R.string.panel_resize),
+                tint = theme.accent,
+                modifier = Modifier.size(18.dp)
+            )
+            Text(
+                text = stringResource(R.string.settings_resize_row),
+                color = theme.keyText.copy(alpha = 0.9f),
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = 8.dp)
+            )
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                contentDescription = stringResource(R.string.panel_resize),
+                tint = theme.accent,
+                modifier = Modifier.size(16.dp)
+            )
+        }
 
         Text(
             text = stringResource(R.string.settings_theme),
