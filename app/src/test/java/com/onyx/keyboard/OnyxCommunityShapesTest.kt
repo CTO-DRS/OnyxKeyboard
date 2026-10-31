@@ -429,7 +429,8 @@ class OnyxCommunityShapesTest {
             .addMigrations(
                 OnyxDatabase.MIGRATION_2_3,
                 OnyxDatabase.MIGRATION_3_4,
-                OnyxDatabase.MIGRATION_4_5, // DB is now v5 — the chain must reach it
+                OnyxDatabase.MIGRATION_4_5,
+                OnyxDatabase.MIGRATION_5_6, // DB is now v6 — the chain must reach it
             )
             .allowMainThreadQueries()
             .build()

@@ -1,12 +1,16 @@
 package com.onyx.keyboard.data.repository
 
 import android.content.Context
+import com.onyx.keyboard.data.CsvShortcuts
+import com.onyx.keyboard.data.backup.OnyxBackup
 import com.onyx.keyboard.data.crypto.OnyxCrypto
 import com.onyx.keyboard.data.db.BigramDao
 import com.onyx.keyboard.data.db.BigramEntity
 import com.onyx.keyboard.data.db.ClipDao
 import com.onyx.keyboard.data.db.ClipEntity
 import com.onyx.keyboard.data.db.DailyStatsEntity
+import com.onyx.keyboard.data.db.FontDao
+import com.onyx.keyboard.data.db.FontEntity
 import com.onyx.keyboard.data.db.OnyxDatabase
 import com.onyx.keyboard.data.db.ProfileDao
 import com.onyx.keyboard.data.db.ProfileEntity
@@ -39,6 +43,7 @@ class OnyxRepository private constructor(context: Context) {
     private val shortcutDao: ShortcutDao = db.shortcutDao()
     private val clipDao: ClipDao = db.clipDao()
     private val bigramDao: BigramDao = db.bigramDao()
+    private val fontDao: FontDao = db.fontDao()
     internal val statsDao = db.statsDao()  // internal: the weekly-stats screen + tests seed historical days directly
     val settings: SettingsDao = db.settingsDao()
 
@@ -71,8 +76,25 @@ class OnyxRepository private constructor(context: Context) {
         const val MAX_CUSTOM_THEMES = 30
         /** Pending background-photo hand-off from the picker trampoline. */
         const val KEY_PENDING_BG_PICK = "pending_bg_pick"
+        /** F10 — id of the imported font applied to the keyboard (0 = default). */
+        const val KEY_SELECTED_FONT = "selected_font_id"
+        /** F10 — pending font-file hand-off from the picker trampoline. */
+        const val KEY_PENDING_FONT_PICK = "pending_font_pick"
         /** Cached raw JSON of the community theme catalog (last good fetch). */
         const val KEY_COMMUNITY_CACHE = "community_catalog_cache"
+        /** Upper bound on imported fonts — keeps the panel sane. */
+        const val MAX_FONTS = 10
+
+        /**
+         * F18 — settings keys that NEVER travel inside a backup file:
+         * picker trampolines (stale hand-offs), the community cache (huge,
+         * refetchable) and the active-profile pointer (restored profiles
+         * get fresh ids; the pointer is meaningless across devices).
+         */
+        val BACKUP_EXCLUDED_KEYS = setOf(
+            KEY_PENDING_BG_PICK, KEY_PENDING_FONT_PICK, KEY_COMMUNITY_CACHE,
+            KEY_CURRENT_PROFILE,
+        )
 
         @Volatile
         private var instance: OnyxRepository? = null
@@ -252,6 +274,148 @@ class OnyxRepository private constructor(context: Context) {
     }
 
     suspend fun deleteShortcut(id: Long) = shortcutDao.deleteById(id)
+
+    /**
+     * F17 — imports shortcut rows from a parsed CSV. Rows replace existing
+     * triggers (the user's file is the truth) and are capped per import.
+     * Returns how many rows landed.
+     */
+    suspend fun importShortcutsCsv(pid: Long, rows: List<CsvShortcuts.Row>): Int {
+        if (rows.isEmpty()) return 0
+        val entities = rows.take(CsvShortcuts.MAX_ROWS).map {
+            ShortcutEntity(
+                profileId = pid,
+                trigger = it.trigger.trim().lowercase(),
+                expansion = it.expansion.trim()
+            )
+        }.filter { it.trigger.isNotEmpty() && it.expansion.isNotEmpty() }
+        shortcutDao.insertAll(entities)
+        return entities.size
+    }
+
+    // ---------------------------------------------------------------- fonts (F10)
+
+    fun observeFonts(): Flow<List<FontEntity>> = fontDao.observeAll()
+
+    suspend fun fontById(id: Long): FontEntity? = fontDao.byId(id)
+
+    /** Persists an imported font file (already copied into private storage). */
+    suspend fun addFont(name: String, path: String): Long {
+        if (fontDao.count() >= MAX_FONTS) return -1L
+        return fontDao.insert(FontEntity(name = name.take(40), path = path))
+    }
+
+    /** Deletes a font row + its file; a selected font is deselected first. */
+    suspend fun deleteFont(font: FontEntity) {
+        if (setting(KEY_SELECTED_FONT, "0").toLongOrNull() == font.id) {
+            putSetting(KEY_SELECTED_FONT, "0")
+        }
+        fontDao.deleteById(font.id)
+        runCatching { java.io.File(font.path).delete() }
+    }
+
+    suspend fun selectFont(id: Long) = putSetting(KEY_SELECTED_FONT, id.toString())
+
+    // ---------------------------------------------------------------- backup (F18)
+
+    /** Builds the full backup payload from every backed-up domain. */
+    suspend fun buildBackupPayload(): OnyxBackup.Payload {
+        val settings = settings.allForBackup()
+            .filter { it.key !in BACKUP_EXCLUDED_KEYS }
+            .map { OnyxBackup.SettingRow(it.key, it.value) }
+        val words = wordDao.allForBackup().map {
+            OnyxBackup.WordRow(it.word, it.lang, it.freq, it.source)
+        }
+        val bigrams = bigramDao.allForBackup().map {
+            OnyxBackup.BigramRow(it.prev, it.next, it.lang, it.freq)
+        }
+        val shortcuts = shortcutDao.allForBackup().map {
+            OnyxBackup.ShortcutRow(it.trigger, it.expansion)
+        }
+        val customThemes = themeDao.all()
+            .filter { !it.builtin }
+            .map {
+                OnyxBackup.ThemeRow(
+                    name = it.name, surfaceTop = it.surfaceTop,
+                    surfaceBottom = it.surfaceBottom, keyFill = it.keyFill,
+                    keyText = it.keyText, accent = it.accent, glow = it.glow,
+                    particle = it.particle, keyRadius = it.keyRadius,
+                    spaceLabel = it.spaceLabel, soundProfile = it.soundProfile,
+                    vibeProfile = it.vibeProfile, bgUri = ""
+                )
+            }
+        return OnyxBackup.Payload(
+            settings = settings, words = words, bigrams = bigrams,
+            shortcuts = shortcuts, themes = customThemes
+        )
+    }
+
+    /**
+     * Restores a decrypted payload. Words/bigrams/shortcuts merge into the
+     * CURRENT profile (their ids are per-profile), settings REPLACE (minus
+     * the excluded keys), custom themes append under the slot cap. Returns
+     * a human-readable Arabic summary of what landed.
+     */
+    suspend fun restoreBackupPayload(p: OnyxBackup.Payload): String {
+        var restoredSettings = 0
+        p.settings.forEach {
+            if (it.key !in BACKUP_EXCLUDED_KEYS && it.key.isNotBlank()) {
+                putSetting(it.key, it.value); restoredSettings++
+            }
+        }
+        val pid = currentProfile()?.id
+        var restoredWords = 0
+        var restoredBigrams = 0
+        var restoredShortcuts = 0
+        if (pid != null) {
+            p.words.forEach { w ->
+                val word = w.word.trim().lowercase()
+                if (word.isEmpty() || word.length > 40) return@forEach
+                if (wordDao.bump(pid, word, System.currentTimeMillis()) == 0) {
+                    wordDao.insert(
+                        WordEntity(
+                            profileId = pid, word = word, lang = w.lang,
+                            freq = w.freq.coerceIn(1, 5000), source = w.source
+                        )
+                    )
+                }
+                restoredWords++
+            }
+            p.bigrams.forEach { b ->
+                if (b.prev.isBlank() || b.next.isBlank()) return@forEach
+                if (bigramDao.bump(pid, b.prev, b.next, System.currentTimeMillis()) == 0) {
+                    bigramDao.insert(
+                        BigramEntity(
+                            profileId = pid, prev = b.prev, next = b.next,
+                            lang = b.lang, freq = b.freq.coerceIn(1, 5000)
+                        )
+                    )
+                }
+                restoredBigrams++
+            }
+            restoredShortcuts = importShortcutsCsv(
+                pid,
+                p.shortcuts.map { CsvShortcuts.Row(it.trigger, it.expansion) }
+            )
+        }
+        var restoredThemes = 0
+        p.themes.forEach { t ->
+            if (themeDao.countCustom() >= MAX_CUSTOM_THEMES) return@forEach
+            themeDao.insert(
+                ThemeEntity(
+                    name = t.name.ifBlank { "مستورد" },
+                    surfaceTop = t.surfaceTop, surfaceBottom = t.surfaceBottom,
+                    keyFill = t.keyFill, keyText = t.keyText, accent = t.accent,
+                    glow = t.glow, particle = t.particle, builtin = false,
+                    keyRadius = t.keyRadius, spaceLabel = t.spaceLabel,
+                    soundProfile = t.soundProfile, vibeProfile = t.vibeProfile
+                )
+            )
+            restoredThemes++
+        }
+        return "الإعدادات: $restoredSettings · كلمات: $restoredWords · " +
+            "توقّعات: $restoredBigrams · اختصارات: $restoredShortcuts · قوالب: $restoredThemes"
+    }
 
     // ---------------------------------------------------------------- clips
 

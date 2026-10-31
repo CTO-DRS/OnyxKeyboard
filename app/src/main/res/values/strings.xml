@@ -233,4 +233,42 @@
     <string name="selection_cut">Cut</string>
     <string name="selection_paste">Paste</string>
     <string name="settings_double_space">Period on double-space</string>
+
+    <!-- F11 — incognito mode + password-field exception -->
+    <string name="incognito_label">Incognito</string>
+    <string name="settings_incognito">Temporary incognito (no learning, no suggestions)</string>
+    <string name="incognito_note">Turned on automatically in password fields</string>
+
+    <!-- F14 — detected verification code -->
+    <string name="otp_insert">Insert code</string>
+
+    <!-- F10 — imported fonts -->
+    <string name="panel_fonts">Fonts</string>
+    <string name="fonts_browse">Import &amp; manage fonts</string>
+    <string name="fonts_import">Import a font from storage</string>
+    <string name="fonts_default">Onyx default font</string>
+    <string name="fonts_active">Applied now</string>
+    <string name="fonts_preview">The quick brown fox 123</string>
+    <string name="fonts_imported">Font imported and applied</string>
+    <string name="fonts_import_failed">This file could not be imported as a valid font</string>
+    <string name="fonts_full">Font slots are full — delete one first</string>
+    <string name="fonts_copyright_title">Copyright notice</string>
+    <string name="fonts_copyright_warning">Make sure you have the right to use this font on your device. Font files may be copyright-protected; Onyx does not verify the license and keeps the file inside its private storage only.</string>
+
+    <!-- F18 — encrypted backup -->
+    <string name="backup_title">Encrypted backup</string>
+    <string name="backup_desc">Export all your settings, learned words, predictions, shortcuts and custom themes into one file encrypted with a password only you own — no account, no cloud, restorable on any device.</string>
+    <string name="backup_export">Export backup</string>
+    <string name="backup_import">Import backup</string>
+    <string name="backup_password_hint">Password (4+ characters) — cannot be recovered if lost</string>
+    <string name="backup_export_done">Encrypted backup created — choose where to keep it</string>
+    <string name="backup_export_failed">Could not create the backup</string>
+    <string name="backup_import_done">Backup restored successfully</string>
+    <string name="backup_wrong_password">Wrong password or corrupted file</string>
+    <string name="backup_short_password">Password too short — 4 characters minimum</string>
+
+    <!-- F17 — shortcut CSV import -->
+    <string name="csv_import">Import from CSV</string>
+    <string name="csv_import_done">%1$d shortcuts imported</string>
+    <string name="csv_import_empty">No valid rows in this file</string>
 </resources>

@@ -18,17 +18,23 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.EnhancedEncryption
+import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -41,6 +47,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -57,6 +65,22 @@ import com.onyx.keyboard.ui.theme.OnyxPurple
 fun PrivacyScreen(onBack: () -> Unit, vm: PrivacyViewModel = viewModel()) {
     val context = LocalContext.current
     var confirmWipe by remember { mutableStateOf<String?>(null) }
+    var showExportDialog by remember { mutableStateOf(false) }
+    var pendingImportText by remember { mutableStateOf<String?>(null) }
+
+    // F18 — the file is read HERE via the document picker; the password is
+    // asked after the pick so the trampoline stays one screen.
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val text = runCatching {
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                input.readBytes().toString(Charsets.UTF_8)
+            }
+        }.getOrNull()
+        if (!text.isNullOrBlank()) pendingImportText = text
+    }
 
     val micLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -137,7 +161,70 @@ fun PrivacyScreen(onBack: () -> Unit, vm: PrivacyViewModel = viewModel()) {
         Spacer(Modifier.height(8.dp))
         WipeRow(stringResource(R.string.wipe_clips)) { confirmWipe = "clips" }
 
+        Spacer(Modifier.height(20.dp))
+        SectionTitle(stringResource(R.string.backup_title))
+        Spacer(Modifier.height(10.dp))
+        PrivacyCard(
+            icon = Icons.Filled.EnhancedEncryption,
+            title = stringResource(R.string.backup_title),
+            body = stringResource(R.string.backup_desc)
+        ) {
+            Spacer(Modifier.height(10.dp))
+            BackupActionRow(
+                label = stringResource(R.string.backup_export),
+                icon = Icons.Filled.FileUpload
+            ) { showExportDialog = true }
+            Spacer(Modifier.height(6.dp))
+            BackupActionRow(
+                label = stringResource(R.string.backup_import),
+                icon = Icons.Filled.Download
+            ) { importLauncher.launch("*/*") }
+        }
         Spacer(Modifier.height(30.dp))
+    }
+
+    // F18 — result note (export done / wrong password / restore summary).
+    val backupEvent by vm.backupEvent.collectAsState()
+    backupEvent?.let { event ->
+        val msg = stringResource(event.messageRes) +
+            (event.detail?.let { " — $it" } ?: "")
+        AlertDialog(
+            onDismissRequest = { vm.consumeBackupEvent() },
+            title = {
+                Text(stringResource(R.string.backup_title), color = Color.White, fontWeight = FontWeight.Bold)
+            },
+            text = { Text(msg, color = Color.White.copy(alpha = 0.75f)) },
+            containerColor = Color(0xFF171224),
+            confirmButton = {
+                TextButton(onClick = { vm.consumeBackupEvent() }) {
+                    Text(stringResource(R.string.confirm), color = OnyxBlue, fontWeight = FontWeight.Bold)
+                }
+            }
+        )
+    }
+
+    // F18 — password dialogs (export) / (import of an already-picked file).
+    if (showExportDialog) {
+        BackupPasswordDialog(
+            title = stringResource(R.string.backup_export),
+            confirmLabel = stringResource(R.string.backup_export),
+            onDismiss = { showExportDialog = false },
+            onConfirm = { pw ->
+                showExportDialog = false
+                vm.exportBackup(pw, context)
+            }
+        )
+    }
+    pendingImportText?.let { content ->
+        BackupPasswordDialog(
+            title = stringResource(R.string.backup_import),
+            confirmLabel = stringResource(R.string.backup_import),
+            onDismiss = { pendingImportText = null },
+            onConfirm = { pw ->
+                pendingImportText = null
+                vm.importBackup(content, pw)
+            }
+        )
     }
 
     confirmWipe?.let { kind ->
@@ -231,4 +318,90 @@ private fun WipeRow(label: String, onClick: () -> Unit) {
             modifier = Modifier.padding(start = 10.dp)
         )
     }
+}
+
+/** Blue action row of the F18 backup card (export / import). */
+@Composable
+private fun BackupActionRow(
+    label: String,
+    icon: ImageVector,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(OnyxBlue.copy(alpha = 0.12f))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            icon,
+            contentDescription = label,
+            tint = OnyxBlue,
+            modifier = Modifier.size(17.dp)
+        )
+        Text(
+            text = label,
+            color = OnyxBlue,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(start = 10.dp)
+        )
+    }
+}
+
+/** F18 — password prompt shared by the export and import flows. */
+@Composable
+private fun BackupPasswordDialog(
+    title: String,
+    confirmLabel: String,
+    onDismiss: () -> Unit,
+    onConfirm: (CharArray) -> Unit,
+) {
+    var password by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(title, color = Color.White, fontWeight = FontWeight.Bold)
+        },
+        text = {
+            Column {
+                Text(
+                    stringResource(R.string.backup_password_hint),
+                    color = Color.White.copy(alpha = 0.6f),
+                    fontSize = 12.sp
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White,
+                        focusedBorderColor = OnyxBlue,
+                        cursorColor = OnyxBlue
+                    )
+                )
+            }
+        },
+        containerColor = Color(0xFF171224),
+        confirmButton = {
+            TextButton(
+                enabled = password.toCharArray().size >= 4,
+                onClick = { onConfirm(password.toCharArray()) }
+            ) {
+                Text(confirmLabel, color = OnyxBlue, fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.cancel), color = Color.White.copy(alpha = 0.6f))
+            }
+        }
+    )
 }

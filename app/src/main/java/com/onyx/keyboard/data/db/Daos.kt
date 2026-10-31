@@ -72,6 +72,10 @@ interface WordDao {
 
     @Query("SELECT COUNT(*) FROM words WHERE profileId = :pid")
     suspend fun countForProfile(pid: Long): Int
+
+    /** F18 — full dump for the encrypted backup export. */
+    @Query("SELECT * FROM words")
+    suspend fun allForBackup(): List<WordEntity>
 }
 
 @Dao
@@ -119,6 +123,14 @@ interface ShortcutDao {
 
     @Query("DELETE FROM shortcuts WHERE id = :id")
     suspend fun deleteById(id: Long)
+
+    /** F18 — full dump for the encrypted backup export. */
+    @Query("SELECT * FROM shortcuts")
+    suspend fun allForBackup(): List<ShortcutEntity>
+
+    /** F17 — one REPLACE per imported CSV row (dedupes by unique index). */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(shortcuts: List<ShortcutEntity>)
 }
 
 @Dao
@@ -218,6 +230,31 @@ interface BigramDao {
 
     @Query("DELETE FROM bigrams WHERE profileId = :pid")
     suspend fun deleteAllForProfile(pid: Long)
+
+    /** F18 — full dump for the encrypted backup export. */
+    @Query("SELECT * FROM bigrams")
+    suspend fun allForBackup(): List<BigramEntity>
+}
+
+@Dao
+interface FontDao {
+    @Query("SELECT * FROM fonts ORDER BY importedAt DESC")
+    fun observeAll(): Flow<List<FontEntity>>
+
+    @Query("SELECT * FROM fonts ORDER BY importedAt DESC")
+    suspend fun all(): List<FontEntity>
+
+    @Query("SELECT * FROM fonts WHERE id = :id")
+    suspend fun byId(id: Long): FontEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(font: FontEntity): Long
+
+    @Query("SELECT COUNT(*) FROM fonts")
+    suspend fun count(): Int
+
+    @Query("DELETE FROM fonts WHERE id = :id")
+    suspend fun deleteById(id: Long)
 }
 
 @Dao
@@ -233,4 +270,8 @@ interface SettingsDao {
 
     @Query("DELETE FROM settings WHERE `key` = :key")
     suspend fun delete(key: String)
+
+    /** F18 — full dump for the encrypted backup export. */
+    @Query("SELECT * FROM settings")
+    suspend fun allForBackup(): List<SettingsEntity>
 }

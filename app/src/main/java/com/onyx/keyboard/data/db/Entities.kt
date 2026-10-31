@@ -129,6 +129,19 @@ data class BigramEntity(
     val lastUsed: Long = System.currentTimeMillis(),
 )
 
+/**
+ * F10 (PRD) — خط مستورد TTF/OTF. The file lives in app-private storage
+ * (fonts/ folder, copied at pick time) and the row's id is what the settings
+ * table references (KEY_SELECTED_FONT) to apply it to the whole keyboard.
+ */
+@Entity(tableName = "fonts")
+data class FontEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String,
+    val path: String,
+    val importedAt: Long = System.currentTimeMillis(),
+)
+
 /** Simple key/value settings store persisted in Room. */
 @Entity(tableName = "settings")
 data class SettingsEntity(

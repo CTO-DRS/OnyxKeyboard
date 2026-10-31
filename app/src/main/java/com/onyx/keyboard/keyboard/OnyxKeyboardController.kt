@@ -10,12 +10,15 @@ import android.view.inputmethod.ExtractedTextRequest
 import android.view.inputmethod.InputConnection
 import androidx.compose.ui.graphics.Color
 import androidx.core.content.FileProvider
+import com.onyx.keyboard.FontPickerActivity
 import com.onyx.keyboard.R
 import com.onyx.keyboard.ThemeImagePickerActivity
 import com.onyx.keyboard.data.db.ClipEntity
+import com.onyx.keyboard.data.db.FontEntity
 import com.onyx.keyboard.data.db.ProfileEntity
 import com.onyx.keyboard.data.db.ThemeEntity
 import com.onyx.keyboard.data.repository.OnyxRepository
+import com.onyx.keyboard.intelligence.OtpDetector
 import com.onyx.keyboard.intelligence.Suggestion
 import com.onyx.keyboard.intelligence.SuggestionEngine
 import kotlinx.coroutines.CoroutineScope
@@ -30,7 +33,7 @@ import kotlin.random.Random
 
 enum class KeyboardPage {
     LETTERS, SYMBOLS, NUMPAD, EMOJI, CLIPBOARD, TRANSLATE, GIF, SETTINGS,
-    THEMES, THEME_EDITOR, THEME_ARCHIVE, VOICE, RESIZE
+    THEMES, THEME_EDITOR, THEME_ARCHIVE, VOICE, RESIZE, FONTS
 }
 enum class Lang(val code: String) { AR("ar"), EN("en") }
 enum class ShiftState { OFF, ON, CAPS }
@@ -276,6 +279,47 @@ class OnyxKeyboardController(
     /** Double-tap space inserts ". " — user preference (default on). */
     val doubleSpacePeriod = MutableStateFlow(true)
 
+    // ------------------------------------------------------------- incognito (F11)
+
+    /**
+     * EFFECTIVE incognito: true in password fields (automatic) or while the
+     * user armed the temporary manual mode. While on: no learning, no
+     * suggestions/predictions, no clipboard chips — and the toolbar shows a
+     * clear indicator.
+     */
+    val incognito = MutableStateFlow(false)
+
+    /** Manual temporary incognito — never persisted ("مؤقت"), in-memory only. */
+    val manualIncognito = MutableStateFlow(false)
+
+    /** The current field is a password/secret field (auto-incognito source). */
+    private var passwordField = false
+
+    // ------------------------------------------------------------- OTP chip (F14)
+
+    /**
+     * Verification code detected in the last clipboard copy; surfaced as a
+     * one-tap insert chip in the toolbar. Cleared on field change, on paste,
+     * and suppressed entirely while incognito is on.
+     */
+    val pendingOtp = MutableStateFlow<String?>(null)
+
+    // ------------------------------------------------------------- fonts (F10)
+
+    /** Imported TTF/OTF faces (rows + private-storage files). */
+    val fonts = MutableStateFlow<List<FontEntity>>(emptyList())
+
+    /** The selected font row id (0 = Onyx default face). */
+    val selectedFontId = MutableStateFlow(0L)
+
+    /** The loaded Typeface of the selected font (null = default). */
+    val activeFont = MutableStateFlow<android.graphics.Typeface?>(null)
+
+    /** Transient font note (string res id): import full / decode failure. */
+    val fontsNote = MutableStateFlow<Int?>(null)
+
+    private val fontCache = mutableMapOf<String, android.graphics.Typeface?>()
+
     /**
      * TEXT SELECTION MODE: the strip above the letters swaps to the
      * selection controls (select-all / copy / cut / paste / extend arrows).
@@ -391,7 +435,10 @@ class OnyxKeyboardController(
 
     fun resetForNewField(numeric: Boolean) = resetForNewField(numeric, 0)
 
-    fun resetForNewField(numeric: Boolean, editorActionId: Int) {
+    fun resetForNewField(numeric: Boolean, editorActionId: Int) =
+        resetForNewField(numeric, editorActionId, password = false)
+
+    fun resetForNewField(numeric: Boolean, editorActionId: Int, password: Boolean) {
         buffer.value = ""
         suggestions.value = emptyList()
         shift.value = ShiftState.OFF
@@ -401,6 +448,13 @@ class OnyxKeyboardController(
         clearGlide()
         resetSentenceContext()
         enterActionId = if (numeric) 0 else editorActionId
+        // F11 — a password field ALWAYS forces incognito for this field;
+        // the manual toggle survives field changes until the user turns it
+        // off (it dies with the service session, never persisted).
+        passwordField = password
+        recomputeIncognito()
+        // A fresh field must not keep a stale code chip on screen.
+        pendingOtp.value = null
         // A fresh field is a fresh session — never leak editor state into it.
         editingTheme.value = null
         internalCapture.value = null
@@ -413,6 +467,28 @@ class OnyxKeyboardController(
         // first extend into a wild span).
         clearSelection()
         page.value = if (numeric) KeyboardPage.SYMBOLS else KeyboardPage.LETTERS
+    }
+
+    /** Effective incognito = password field OR the manual temporary mode. */
+    private fun recomputeIncognito() {
+        incognito.value = passwordField || manualIncognito.value
+    }
+
+    /** Toolbar / quick-settings arm switch for the temporary incognito mode. */
+    fun setManualIncognito(on: Boolean) {
+        haptic()
+        manualIncognito.value = on
+        recomputeIncognito()
+        // Leaving incognito resumes a clean slate; entering it wipes what
+        // the strip may still be showing.
+        if (on) suggestions.value = emptyList()
+    }
+
+    /** F14 — commits the detected verification code in one tap. */
+    fun pasteOtp() {
+        val code = pendingOtp.value ?: return
+        pendingOtp.value = null
+        commitText(code)
     }
 
     /** Fresh field / fresh session: no bigram context, not a sentence start. */
@@ -609,7 +685,9 @@ class OnyxKeyboardController(
             ic?.finishComposingText()
         } else {
             ic?.finishComposingText()
-            if (learning.value) {
+            // F11 — incognito never writes to the dictionary (no word, no
+            // bigram), whatever the learning switch says.
+            if (learning.value && !incognito.value) {
                 repo.recordWord(pid, word, lang.value.code)
                 // Full-suggestion memory: also learn the word PAIR so this
                 // word can predict its own continuations next time.
@@ -828,6 +906,11 @@ class OnyxKeyboardController(
     // ------------------------------------------------------------- suggestions
 
     private fun updateSuggestions() {
+        // F11 — incognito fields get no suggestions at all.
+        if (incognito.value) {
+            suggestions.value = emptyList()
+            return
+        }
         val prefix = buffer.value
         if (prefix.isBlank()) {
             suggestions.value = emptyList()
@@ -850,7 +933,7 @@ class OnyxKeyboardController(
      * the ONYX branding stays visible until the user actually types.
      */
     private suspend fun updatePredictions() {
-        if (!predictions.value) {
+        if (!predictions.value || incognito.value) {
             suggestions.value = emptyList()
             return
         }
@@ -1184,6 +1267,7 @@ class OnyxKeyboardController(
             if (!current.isNullOrBlank()) {
                 lastClip = current
                 quickClip.value = current
+                pendingOtp.value = OtpDetector.detect(current)
                 // Capture pre-existing clipboard content into the history too,
                 // so the panel matches what the chip offers.
                 scope.launch(Dispatchers.IO) {
@@ -1199,6 +1283,9 @@ class OnyxKeyboardController(
             lastClip = text
             if (!clipsEnabled.value) return@addPrimaryClipChangedListener
             quickClip.value = text
+            // F14 — every fresh copy gets an OTP look; the chip only shows
+            // when the detector is confident enough to commit.
+            pendingOtp.value = OtpDetector.detect(text)
             scope.launch(Dispatchers.IO) {
                 runCatching { repo.addClip(text) }
             }
@@ -1506,6 +1593,104 @@ class OnyxKeyboardController(
         scope.launch {
             runCatching { repo.putSetting(OnyxRepository.KEY_PENDING_BG_PICK, "") }
         }
+    }
+
+    // ------------------------------------------------- fonts (F10)
+
+    /** Launches the transparent font picker (with the copyright warning). */
+    fun requestFontImport() {
+        haptic()
+        runCatching {
+            context.startActivity(
+                Intent(context, FontPickerActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+        }
+    }
+
+    /**
+     * Called by the service when the font picker handed off a copied file
+     * path (or "" for a cancel) — registers the row and auto-selects it.
+     */
+    fun onFontPicked(raw: String) {
+        // Mirror onBackgroundPicked: a blank hand-off (cancel / our own
+        // reset) must NOT be written back — writing would re-trigger the
+        // settings observer in an endless loop.
+        if (raw.isBlank()) return
+        scope.launch {
+            runCatching { repo.putSetting(OnyxRepository.KEY_PENDING_FONT_PICK, "") }
+            val path = raw.removePrefix("file:")
+            val file = File(path)
+            if (!file.exists() || file.length() == 0L) {
+                fontsNote.value = R.string.fonts_import_failed
+                return@launch
+            }
+            val name = file.nameWithoutExtension
+                .replace(Regex("[_-]+"), " ").trim().ifBlank { "Font" }
+            val id = runCatching { repo.addFont(name, path) }.getOrDefault(-1L)
+            if (id <= 0) {
+                runCatching { file.delete() }
+                fontsNote.value = R.string.fonts_full
+                return@launch
+            }
+            // A face that cannot decode is worthless — reject it here.
+            val face = loadTypeface(path)
+            if (face == null) {
+                runCatching { repo.deleteFont(FontEntity(id = id, name = name, path = path)) }
+                fontsNote.value = R.string.fonts_import_failed
+                return@launch
+            }
+            fontsNote.value = R.string.fonts_imported
+            selectFontNow(id)
+        }
+    }
+
+    /** Applies an imported font to the whole keyboard (persisted). */
+    fun selectFontNow(id: Long) {
+        haptic()
+        selectedFontId.value = id
+        scope.launch {
+            runCatching { repo.selectFont(id) }
+            syncActiveFont(id)
+        }
+    }
+
+    /**
+     * Re-loads the active Typeface for [id] from the repository — the
+     * read-only path the service's settings observer uses on startup and
+     * after a restore (no persistence side effects).
+     */
+    fun syncActiveFont(id: Long) {
+        scope.launch {
+            val face = if (id == 0L) null else
+                runCatching { repo.fontById(id)?.let { loadTypeface(it.path) } }
+                    .getOrDefault(null)
+            activeFont.value = face
+        }
+    }
+
+    /** Removes an imported font (row + file); deselects it when active. */
+    fun deleteFontNow(font: FontEntity) {
+        haptic()
+        scope.launch {
+            runCatching { repo.deleteFont(font) }
+            if (selectedFontId.value == font.id) selectFontNow(0L)
+        }
+    }
+
+    /** Loads (and caches) a private-storage typeface; null when undecodable. */
+    private suspend fun loadTypeface(path: String): android.graphics.Typeface? {
+        if (path.isBlank()) return null
+        if (fontCache.containsKey(path)) return fontCache[path]
+        val face = withContext(Dispatchers.IO) {
+            runCatching {
+                val f = File(path)
+                if (!f.exists() || f.length() == 0L) return@runCatching null
+                android.graphics.Typeface.createFromFile(f)
+            }.getOrNull()
+        }
+        fontCache[path] = face
+        return face
     }
 
     // ------------------------------------------------- community theme archive

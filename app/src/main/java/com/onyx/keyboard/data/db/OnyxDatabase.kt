@@ -17,6 +17,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         DailyStatsEntity::class,
         SettingsEntity::class,
         BigramEntity::class,
+        FontEntity::class,
     ],
     // v2: added the "bigrams" table (learned word pairs for next-word
     // prediction). fallbackToDestructiveMigration handles anything older.
@@ -28,7 +29,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
     // v5: added themes.soundProfile + themes.vibeProfile (per-theme key
     // tap sound + vibration, edited in the theme editor and carried by
     // share codes).
-    version = 5,
+    // v6: added the fonts table (F10 — imported TTF/OTF faces managed by
+    // the fonts panel; the settings row KEY_SELECTED_FONT points at one).
+    version = 6,
     exportSchema = false
 )
 abstract class OnyxDatabase : RoomDatabase() {
@@ -41,6 +44,7 @@ abstract class OnyxDatabase : RoomDatabase() {
     abstract fun statsDao(): StatsDao
     abstract fun settingsDao(): SettingsDao
     abstract fun bigramDao(): BigramDao
+    abstract fun fontDao(): FontDao
 
     companion object {
         @Volatile
@@ -69,6 +73,16 @@ abstract class OnyxDatabase : RoomDatabase() {
             }
         }
 
+        /** v5 → v6: the fonts table for imported TTF/OTF faces. */
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `fonts` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`name` TEXT NOT NULL, `path` TEXT NOT NULL, `importedAt` INTEGER NOT NULL)"
+                )
+            }
+        }
+
         fun get(context: Context): OnyxDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
@@ -76,7 +90,7 @@ abstract class OnyxDatabase : RoomDatabase() {
                     OnyxDatabase::class.java,
                     "onyx.db"
                 )
-                    .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                    .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                     .fallbackToDestructiveMigration()
                     .build()
                     .also { instance = it }

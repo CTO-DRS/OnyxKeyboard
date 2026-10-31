@@ -107,10 +107,12 @@ fun OnyxKeyboardScreen(controller: OnyxKeyboardController) {
         // Every neon key inherits the active theme's corner radius, so the
         // editor's shape slider reshapes the whole keyboard live. The scale
         // provider carries the resize panel's global key-height factor
-        // (مساحة اللوحة) the same way.
+        // (مساحة اللوحة) the same way — and the font provider carries the
+        // imported TTF/OTF face (F10) so every typed glyph renders in it.
         CompositionLocalProvider(
             LocalOnyxKeyRadius provides theme.keyRadius,
             LocalOnyxKeyScale provides controller.keyboardScale.collectAsState().value,
+            LocalOnyxFont provides controller.activeFont.collectAsState().value,
         ) {
         val oneHand by controller.oneHand.collectAsState()
         // Custom background photo (user themes) — decoded once per path on a
@@ -276,6 +278,7 @@ private fun KeyboardBody(controller: OnyxKeyboardController, shrink: Float) {
                 KeyboardPage.THEME_EDITOR -> ThemeEditorPanel(controller)
                 KeyboardPage.THEME_ARCHIVE -> CommunityArchivePanel(controller)
                 KeyboardPage.RESIZE -> ResizePanel(controller)
+                KeyboardPage.FONTS -> FontsPanel(controller)
             }
         }
     }
