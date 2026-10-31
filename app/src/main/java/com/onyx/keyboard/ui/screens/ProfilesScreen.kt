@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -54,14 +55,29 @@ import com.onyx.keyboard.ui.theme.OnyxPurple
 
 @Composable
 fun ProfilesScreen(onBack: () -> Unit, vm: ProfilesViewModel = viewModel()) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val profiles by vm.profiles.collectAsState()
     val active by vm.activeProfile.collectAsState()
     val customWords by vm.customWords.collectAsState()
     val shortcuts by vm.shortcuts.collectAsState()
+    val csvNote by vm.csvNote.collectAsState()
 
     var showAddProfile by remember { mutableStateOf(false) }
     var showAddWord by remember { mutableStateOf(false) }
     var showAddShortcut by remember { mutableStateOf(false) }
+
+    // F17 — CSV import via the system document picker.
+    val csvLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val text = runCatching {
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                input.readBytes().toString(Charsets.UTF_8)
+            }
+        }.getOrNull()
+        if (!text.isNullOrBlank()) vm.importShortcutsCsv(text)
+    }
 
     Column(
         Modifier
@@ -127,6 +143,41 @@ fun ProfilesScreen(onBack: () -> Unit, vm: ProfilesViewModel = viewModel()) {
             }
             item {
                 AddRow(label = stringResource(R.string.add_shortcut)) { showAddShortcut = true }
+            }
+            item {
+                // F17 — bulk import from a personal-dictionary CSV file.
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(OnyxBlue.copy(alpha = 0.10f))
+                        .clickable { csvLauncher.launch("*/*") }
+                        .padding(horizontal = 14.dp, vertical = 11.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Filled.FileUpload,
+                        contentDescription = stringResource(R.string.csv_import),
+                        tint = OnyxBlue,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Text(
+                        text = "  " + stringResource(R.string.csv_import),
+                        color = OnyxBlue,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+            item {
+                csvNote?.let { noteRes ->
+                    Text(
+                        text = stringResource(noteRes),
+                        color = OnyxBlue,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    )
+                }
                 Spacer(Modifier.height(30.dp))
             }
         }

@@ -231,4 +231,42 @@
     <string name="selection_cut">قص</string>
     <string name="selection_paste">لصق</string>
     <string name="settings_double_space">نقطة تلقائية بعد مسافتين</string>
+
+    <!-- F11 — وضع التخفي واستثناء كلمات المرور -->
+    <string name="incognito_label">وضع التخفي</string>
+    <string name="settings_incognito">وضع التخفي المؤقت (بلا تعلّم ولا اقتراحات)</string>
+    <string name="incognito_note">يُفعَّل تلقائيًا في حقول كلمات المرور</string>
+
+    <!-- F14 — رمز التحقق المكتشف -->
+    <string name="otp_insert">إدراج الرمز</string>
+
+    <!-- F10 — الخطوط المستوردة -->
+    <string name="panel_fonts">الخطوط</string>
+    <string name="fonts_browse">استيراد وإدارة الخطوط</string>
+    <string name="fonts_import">استيراد خط من التخزين</string>
+    <string name="fonts_default">خط Onyx الافتراضي</string>
+    <string name="fonts_active">مُطبَّق الآن</string>
+    <string name="fonts_preview">أبجد هوز كلظي 123</string>
+    <string name="fonts_imported">تم استيراد الخط وتطبيقه</string>
+    <string name="fonts_import_failed">تعذّر استيراد هذا الملف كخط صالح</string>
+    <string name="fonts_full">عدد الخطوط ممتلئ — احذف خطًا أولًا</string>
+    <string name="fonts_copyright_title">تنبيه حقوق النسخ</string>
+    <string name="fonts_copyright_warning">تأكد أن لديك حق استخدام هذا الخط على جهازك. ملفات الخطوط قد تكون محمية بحقوق الملكية، وOnyx لا تتحقق من الترخيص وتحفظ الملف داخل مساحتها الخاصة فقط.</string>
+
+    <!-- F18 — النسخ الاحتياطي المشفر -->
+    <string name="backup_title">النسخ الاحتياطي المشفّر</string>
+    <string name="backup_desc">صدّر كل إعداداتك وكلماتك المتعلَّمة وتوقّعاتك واختصاراتك وقوالبك المخصصة في ملف واحد مشفّر بكلمة سر تملكها أنت — بلا حساب ولا سحابة، ويُستعاد على أي جهاز.</string>
+    <string name="backup_export">تصدير نسخة احتياطية</string>
+    <string name="backup_import">استيراد نسخة احتياطية</string>
+    <string name="backup_password_hint">كلمة السر (4 أحرف على الأقل) — لا يمكن استعادتها إن فُقدت</string>
+    <string name="backup_export_done">تم إنشاء النسخة المشفّرة — اختر مكان حفظها</string>
+    <string name="backup_export_failed">تعذّر إنشاء النسخة الاحتياطية</string>
+    <string name="backup_import_done">تمت الاستعادة بنجاح</string>
+    <string name="backup_wrong_password">كلمة السر خاطئة أو الملف تالف</string>
+    <string name="backup_short_password">كلمة السر قصيرة — 4 أحرف على الأقل</string>
+
+    <!-- F17 — استيراد الاختصارات من CSV -->
+    <string name="csv_import">استيراد من CSV</string>
+    <string name="csv_import_done">تم استيراد %1$d اختصارًا</string>
+    <string name="csv_import_empty">لا صفوف صالحة في هذا الملف</string>
 </resources>

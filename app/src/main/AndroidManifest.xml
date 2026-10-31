@@ -33,6 +33,14 @@
             android:excludeFromRecents="true"
             android:theme="@android:style/Theme.Translucent.NoTitleBar" />
 
+        <!-- Invisible trampoline: IME → system font picker → copyright warning
+             → settings hand-off (F10 — imported TTF/OTF faces). -->
+        <activity
+            android:name=".FontPickerActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
         <service
             android:name=".service.OnyxIME"
             android:exported="true"

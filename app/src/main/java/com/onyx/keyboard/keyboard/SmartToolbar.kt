@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.Gif
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PhotoSizeSelectLarge
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material3.Icon
@@ -33,6 +34,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -51,6 +53,9 @@ fun SmartToolbar(controller: OnyxKeyboardController) {
     val lang by controller.lang.collectAsState()
     val quickClip by controller.quickClip.collectAsState()
     val page by controller.page.collectAsState()
+    val incognito by controller.incognito.collectAsState()
+    val otp by controller.pendingOtp.collectAsState()
+    val onyxFont = LocalOnyxFont.current?.let { FontFamily(it) }
 
     Row(
         modifier = Modifier
@@ -77,6 +82,35 @@ fun SmartToolbar(controller: OnyxKeyboardController) {
             )
         }
 
+        // F11 — the clear incognito indicator (password field or manual).
+        // A tap exits the MANUAL part; a forced password-field incognito
+        // stays on until the field changes.
+        if (incognito) {
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(theme.glow.copy(alpha = 0.22f))
+                    .clickable { if (controller.manualIncognito.value) {
+                        controller.setManualIncognito(false)
+                    } }
+                    .padding(horizontal = 7.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Shield,
+                    contentDescription = stringResource(R.string.incognito_label),
+                    tint = theme.glow,
+                    modifier = Modifier.size(13.dp)
+                )
+                Text(
+                    text = stringResource(R.string.incognito_label),
+                    color = theme.glow,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+
         // Suggestion chips (flexible middle)
         Row(
             modifier = Modifier.weight(1f),
@@ -84,10 +118,36 @@ fun SmartToolbar(controller: OnyxKeyboardController) {
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             if (suggestions.isEmpty()) {
-                // One-tap paste of the CURRENT system clipboard (Gboard-style
-                // quick chip) — hidden while the clipboard panel shows its own.
-                val q = quickClip
-                if (q != null && page != KeyboardPage.CLIPBOARD) {
+                // F14 — detected verification code chip: one tap inserts it.
+                // Hidden while incognito (a password field must never offer
+                // clipboard-derived content) and on the clipboard panel.
+                val code = otp
+                if (code != null && !incognito && page != KeyboardPage.CLIPBOARD) {
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(9.dp))
+                            .background(theme.accent.copy(alpha = 0.20f))
+                            .clickable { controller.pasteOtp() }
+                            .padding(horizontal = 8.dp, vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Shield,
+                            contentDescription = stringResource(R.string.otp_insert),
+                            tint = theme.accent,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Text(
+                            text = " " + stringResource(R.string.otp_insert) + " " + code,
+                            color = theme.accent,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                } else if (quickClip != null && page != KeyboardPage.CLIPBOARD && !incognito) {
+                    val q = quickClip.orEmpty()
                     Row(
                         modifier = Modifier
                             .clip(RoundedCornerShape(9.dp))
@@ -106,6 +166,7 @@ fun SmartToolbar(controller: OnyxKeyboardController) {
                             text = " " + q.take(24),
                             color = theme.keyText,
                             fontSize = 13.sp,
+                            fontFamily = onyxFont,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -135,6 +196,7 @@ fun SmartToolbar(controller: OnyxKeyboardController) {
                             text = controller.displaySuggestion(s),
                             color = if (s.isCorrection) theme.glow else theme.keyText,
                             fontSize = 15.sp,
+                            fontFamily = onyxFont,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -208,6 +270,7 @@ private fun ToolIcon(
 fun SuggestionBar(controller: OnyxKeyboardController) {
     val theme by controller.theme.collectAsState()
     val suggestions by controller.suggestions.collectAsState()
+    val onyxFont = LocalOnyxFont.current?.let { FontFamily(it) }
 
     Row(
         modifier = Modifier
@@ -255,6 +318,7 @@ fun SuggestionBar(controller: OnyxKeyboardController) {
                     color = if (s.isCorrection) theme.glow else theme.keyText,
                     fontSize = 17.sp,
                     fontWeight = FontWeight.Medium,
+                    fontFamily = onyxFont,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     textAlign = TextAlign.Center

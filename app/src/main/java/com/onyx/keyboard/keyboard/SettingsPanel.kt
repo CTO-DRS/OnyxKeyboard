@@ -23,6 +23,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PhotoSizeSelectLarge
+import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -91,6 +93,12 @@ fun SettingsPanel(controller: OnyxKeyboardController) {
         }
         ToggleRow(controller, stringResource(R.string.settings_clip_capture), controller.clipsEnabled) {
             controller.setSetting(OnyxRepository.KEY_CLIP_CAPTURE, it)
+        }
+        // F11 — the temporary manual incognito. The switch reads/writes the
+        // MANUAL flag; the row's effective state may still be forced on by a
+        // password field (the toolbar shows the shield chip in that case).
+        ToggleRow(controller, stringResource(R.string.settings_incognito), controller.manualIncognito) {
+            controller.setManualIncognito(it)
         }
         ToggleRow(controller, stringResource(R.string.settings_gifnet), controller.gifNet) {
             controller.setSetting(OnyxRepository.KEY_GIF_NET, it)
@@ -201,6 +209,38 @@ fun SettingsPanel(controller: OnyxKeyboardController) {
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                 contentDescription = stringResource(R.string.panel_community),
+                tint = theme.accent,
+                modifier = Modifier.size(16.dp)
+            )
+        }
+        // F10 — imported fonts panel (TTF/OTF + copyright warning on pick).
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(theme.accent.copy(alpha = 0.14f))
+                .clickable { controller.setPage(KeyboardPage.FONTS) }
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Filled.TextFields,
+                contentDescription = stringResource(R.string.panel_fonts),
+                tint = theme.accent,
+                modifier = Modifier.size(18.dp)
+            )
+            Text(
+                text = stringResource(R.string.fonts_browse),
+                color = theme.keyText.copy(alpha = 0.9f),
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = 8.dp)
+            )
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                contentDescription = stringResource(R.string.panel_fonts),
                 tint = theme.accent,
                 modifier = Modifier.size(16.dp)
             )

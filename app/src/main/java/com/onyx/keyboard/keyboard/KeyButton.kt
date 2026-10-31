@@ -36,6 +36,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -58,6 +59,13 @@ val LocalOnyxKeyRadius = staticCompositionLocalOf { 14 }
  * and strips keep their fixed 46dp chrome.
  */
 val LocalOnyxKeyScale = staticCompositionLocalOf { 1f }
+
+/**
+ * F10 — the user's imported TTF/OTF face, provided by the IME surface from
+ * the fonts panel selection. Every text that types (key labels, suggestions,
+ * space bar) renders in it; null = Onyx's default face.
+ */
+val LocalOnyxFont = staticCompositionLocalOf<android.graphics.Typeface?> { null }
 
 /**
  * A single neon-glass key. Pressed state triggers: scale-down, glow bloom,
@@ -142,6 +150,7 @@ fun RowScope.KeyButton(
             color = keyText,
             fontSize = (fontSize * keyScale).sp,
             fontWeight = fontWeight,
+            fontFamily = LocalOnyxFont.current?.let { FontFamily(it) },
             maxLines = 1
         )
     }

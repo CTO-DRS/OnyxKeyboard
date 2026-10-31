@@ -25,6 +25,7 @@ import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.onyx.keyboard.AppGraph
 import com.onyx.keyboard.data.repository.OnyxRepository
 import com.onyx.keyboard.keyboard.GifItem
+import com.onyx.keyboard.keyboard.IncognitoPolicy
 import com.onyx.keyboard.keyboard.KeyboardScale
 import com.onyx.keyboard.keyboard.OneHand
 import com.onyx.keyboard.keyboard.OnyxFallbackScreen
@@ -197,6 +198,23 @@ class OnyxIME : InputMethodService() {
             // values (cancels / our own reset) are ignored by the controller.
             repo.observeSetting(OnyxRepository.KEY_PENDING_BG_PICK, "")
                 .collectLatest { controller.onBackgroundPicked(it) }
+        }
+        scope.launch {
+            // F10 — imported-font roster + the selected face id + the picker
+            // hand-off (same trampoline pattern as the background image).
+            repo.observeFonts().collectLatest { controller.fonts.value = it }
+        }
+        scope.launch {
+            repo.observeSetting(OnyxRepository.KEY_SELECTED_FONT, "0")
+                .collectLatest { raw ->
+                    val id = raw.toLongOrNull() ?: 0L
+                    controller.selectedFontId.value = id
+                    controller.syncActiveFont(id)
+                }
+        }
+        scope.launch {
+            repo.observeSetting(OnyxRepository.KEY_PENDING_FONT_PICK, "")
+                .collectLatest { controller.onFontPicked(it) }
         }
     }
 
@@ -371,13 +389,16 @@ class OnyxIME : InputMethodService() {
             val numeric = cls == InputType.TYPE_CLASS_NUMBER ||
                 cls == InputType.TYPE_CLASS_PHONE ||
                 cls == InputType.TYPE_CLASS_DATETIME
+            // F11 — password/secret fields force incognito automatically:
+            // no learning, no suggestions, no clipboard chips.
+            val password = IncognitoPolicy.isPasswordField(editorInfo?.inputType ?: 0)
             // Honour the field's editor action (send / search / done…) so the
             // Enter key performs what the app expects instead of adding a newline.
             val imeOptions = editorInfo?.imeOptions ?: 0
             val noEnterAction = imeOptions and EditorInfo.IME_FLAG_NO_ENTER_ACTION != 0
             val action = editorInfo?.actionId ?: EditorInfo.IME_ACTION_NONE
             val editorAction = if (noEnterAction || action == EditorInfo.IME_ACTION_NONE) 0 else action
-            controller.resetForNewField(numeric, editorAction)
+            controller.resetForNewField(numeric, editorAction, password)
         }.onFailure { Log.e(TAG, "onStartInputView reset failed", it) }
     }
 
